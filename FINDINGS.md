@@ -277,6 +277,133 @@ All three mean giving up on pure lexical retrieval.
 
 ---
 
+## 8. The corner I mislabelled, and the one thing TF-IDF cannot do
+
+I wrote four extra golden pairs to break things on purpose: company disambiguation, a comparative period, a relative date, and a question with no date in it. Baseline on all eight:
+
+| Question | Tests | Rank |
+|---|---|---|
+| Reddit revenue $2.2bn | company disambiguation | **1** |
+| Pinterest MAU growth 12% | comparative period | **3** |
+| Reddit growth 69%, "last year" | relative date | **4** |
+| Pinterest headcount, no date | no date at all | **84** |
+
+Three of the four corners already work, and two of those contradict what I predicted.
+
+**Company disambiguation works.** Rank 1. Four companies is easy even with the company name at IDF 2.65.
+
+**The comparative-period question works, at rank 3, precisely because there is no filter.** The question asks about 2024 and lexical retrieval returns the 2025 filing, which is the right source. I had argued this corner was the reason to prefer a soft boost over a hard filter. It is stronger than that: **a hard filter would break a question that currently passes.**
+
+### The remaining failure is not what I called it
+
+I labelled the last one "no date." That was wrong, and the term counts say so:
+
+```
+question:  "How many people does Pinterest employ?"
+
+  employ      in     7 chunks   idf 8.11   NOT in the target chunk
+  people      in   210 chunks   idf 4.84   NOT in the target chunk
+  does        in   251 chunks   idf 4.66   NOT in the target chunk
+  pinterest   in 1,887 chunks   idf 2.65   in the target chunk
+
+the document says:
+  headcount   in   104 chunks   idf 5.54   in the target, NOT in the question
+```
+
+**The only word shared between question and answer is "pinterest," the weakest of the four.** And "employ", the highest-IDF term in the whole question at 8.11, sits in seven chunks and none of them is the right one. The strongest signal in the query is steering retrieval away from the answer.
+
+Adding a date would not help. "employ" still would not match "headcount." This is **vocabulary mismatch**: two words with the same meaning and no letters in common.
+
+**No amount of filtering, boosting or reweighting fixes this.** Lexical retrieval matches literal words. There is no literal word to match.
+
+### Where TF-IDF stops
+
+This is what **embeddings** (dense vectors that place text with similar meaning close together) are for. "employ" and "headcount" appear in similar contexts across a training corpus, so a semantic retriever puts them near each other even though they share nothing lexically.
+
+TF-IDF earned its place first. The provenance bug, the IDF collapse, the metric that could not fail, all of those were findable because lexical failures are explainable: you can point at a term count and say why. A dense retriever would have partially papered over the provenance problem and it would never have been found.
+
+**Now it has hit the failure it structurally cannot solve.** That is the difference between using embeddings because everyone does, and using them because you found the specific case that requires them.
+
+---
+
+## 9. Five percent of the corpus was never text
+
+Checking what the 800-character cuts were landing in the middle of turned up chunks like this:
+
+```
+snap-20260331 0001564408 12-31 2026 Q1 false P3Y P1Y 1 1 392 424
+xbrli:shares iso4217:USD snap:class snap:plan xbrli:pure snap:segment
+0001564408 2026-01-01 2026-03-31 0001564408 snap:CommonClassANonVotingMember
+```
+
+That is **inline XBRL**, the machine-readable financial tagging the SEC requires. It lives in the same HTML file as the prose, hidden from a browser, and the scraper pulled the tag contents out as text. `0001564408` is Snap's SEC company number. `us-gaap:CommonClassBMember` is an accounting taxonomy code.
+
+**456 of 9,811 chunks, 5%, contained no readable content at all.** And they were full of exactly the terms the period questions depend on:
+
+```
+'2025'      in 429 of the 456   94%
+'2024'      in 239              52%
+'december'  in 127              28%
+```
+
+All of it sat in a single `<ix:header>` block per filing, so removing it is one line at fetch time. The `ix:nonFraction` tags that wrap real displayed numbers are left alone.
+
+### A bug the README was bragging about not having
+
+The same check found this, two lines apart in `fetch_filings.py`:
+
+```python
+raw  = re.sub(r"(?i)</t[dh]>", "\t", raw)   # turn table cells into tabs
+text = re.sub(r"[ \t]+", " ", text)          # ...then delete every tab
+```
+
+Tabs added, then collapsed away. Meanwhile the README claimed:
+
+> "Closing `</p>`, `</tr>` and `</h1>` become newlines, `</td>` becomes a tab... You cannot chunk on structure a parser already destroyed."
+
+Row boundaries survived, because newlines were not in that character class. **Cell boundaries did not.** The public repo documented a design decision the code undid. After the fix, 1,537 chunks carry table structure that was previously flattened.
+
+### Results, and they are mixed
+
+```
+      answer  before   after
+       5,265       7       7
+         619      16      27      worse
+         16%       6       3      better
+         474       1       1
+ 2.2 billion       1       1
+         12%       3       1      better
+       5,116      84      73      slightly better, still broken
+         69%       4       6      worse
+
+hit@3   3/8 -> 4/8
+hit@10  6/8 -> 6/8
+MRR   0.371 -> 0.462
+```
+
+Two better, two worse, MRR up 25%. Removing 346 chunks changes the IDF of everything slightly, so rankings shift in both directions.
+
+**It did not fix the period problem, as predicted.** "december" went from IDF 2.02 to 2.00. The XBRL was only about 4% of the chunks carrying date terms; the provenance headers did the real damage and still do.
+
+### Why header-aware chunking is off the list
+
+The same investigation checked whether the original Week 1 plan's fix was viable:
+
+```
+source HTML:  <h1>: 0   <h2>: 0   <h3>: 0   <h4>: 0
+              <b>:  0   font-weight:bold: 0
+```
+
+**SEC filings carry no heading markup at all.** They are styled with inline CSS on plain spans and divs, so a heading is indistinguishable from body text once tags are stripped:
+
+```
+'...positive environment. \n Our Users and Our Platform \n 619 million monthly active users...'
+```
+
+Header-aware chunking was inherited from the original plan, which was written for a corpus of **markdown files**, where `#` headings genuinely exist. It was carried forward for eleven days without anyone checking whether it applied here. It does not.
+
+---
+
 ## Where it stands
 
 Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.
