@@ -141,7 +141,19 @@ Prepended **after** chunking, not before, so chunk boundaries stay byte-identica
 
 Headcount went from unreachable to rank 33, which is the single failure this targeted. The metric did not move because hit@3 is a threshold, and rank 33 scores the same as rank 9,811.
 
-**Intended side effect:** "pinterest" went from 218 chunks (IDF 4.80) to 1,887 (IDF 2.65). Its IDF dropped because now every Pinterest chunk claims the company. That is the point: it stopped separating boilerplate from facts and started separating Pinterest from Snap, which is the job it should have had. The cost of that trade shows up in finding 7.
+**Intended side effect:** "pinterest" went from 218 chunks (IDF 4.80) to 1,887 (IDF 2.65). Its IDF dropped because every Pinterest chunk now claims the company.
+
+**A dropping IDF is not automatically bad.** What matters is whether the term still lines up with the thing it names. Here it does:
+
+```
+"pinterest"  1,887 chunks over 12 files
+             PINS-10-K:540  PINS-10-Q:467  PINS-10-Q:450  PINS-10-Q:413  SNAP:5
+             1,870 of 1,887 are the four Pinterest files
+```
+
+Eight other files contribute 17 chunks between them, which is noise. So the term stopped separating boilerplate from facts and started separating Pinterest from Snap, which is the job it should have had. Lower IDF, same meaning.
+
+The same trade goes badly for dates, for a reason that is not obvious. See finding 7.
 
 ---
 
@@ -218,20 +230,34 @@ So retrieval does exactly what the numbers tell it to. It finds chunks about MAU
 
 All Pinterest. None with the answer. Company disambiguation (telling the four companies apart) works. **Period disambiguation** does not.
 
-### I caused half of this
+### I caused half of this, and the reason is not the one I first wrote down
 
-The provenance header stamps a date onto every chunk. All 9,811 of them. So the IDF of date words collapsed:
+The provenance header stamps a date onto every chunk. All 9,811 of them. The IDF of date words collapsed:
 
 | Word | Before headers | After headers |
 |---|---|---|
 | december | 1,118 chunks, IDF 3.17 | **3,549 chunks, IDF 2.02** |
 | 2025 | 2,549 chunks, IDF 2.35 | **6,270 chunks, IDF 1.45** |
 
-**The header bought company disambiguation by spending period disambiguation.** Headcount needed the company name and got it. MAU needed the period and lost it.
+My first explanation was "IDF dropped, so the term stopped helping." That is the symptom, not the cause. Finding 5 has an IDF drop just as large and it was fine.
 
-That is IDF working correctly. A word only narrows things down if some chunks have it and others do not. Put it on everything and its IDF drops to nothing.
+**The actual cause: all four companies have a December 31 fiscal year end.**
 
-I missed it at the time because the MAU result was already failing. **A wrong number stays wrong, so nothing looked different.**
+```
+"december"   3,549 chunks over 16 of 16 files
+             SNAP-10-K:1031  META-10-K:837  RDDT-10-K:689  PINS-10-K:540
+             every company's annual report
+```
+
+Compare that to "pinterest" in finding 5, where 1,870 of 1,887 chunks sit in the four Pinterest files. **That term still lines up with what it names. This one does not.**
+
+After the header, "december" no longer means "Pinterest's December filing." It means **"this is an annual report."** One date, four companies.
+
+**So the date and the company live in separate terms, and neither alone identifies a document.** You would need both to fire together, and TF-IDF scores every term independently. Meanwhile "maus" at IDF 6.38 outweighs both of them combined.
+
+**The lesson is not "do not lower IDF."** It is: check whether a term still corresponds to the thing it is supposed to identify. Finding 5 lowered an IDF and kept the correspondence. Finding 7 lowered one and destroyed it.
+
+I missed this at the time because the MAU result was already failing. **A wrong number stays wrong, so nothing looked different.**
 
 ### Why this one is harder
 
@@ -242,7 +268,7 @@ This is not a weighting problem. The period is in the question and in the header
 Three real options, none of them small:
 
 1. **Query parsing plus metadata filtering.** Read the date out of the question, then only search documents matching that period. Accurate, and it means the system has to understand the query rather than match against it.
-2. **A distinctive period token** in the header, such as `period_20251231`. Rare, so high IDF. Only works if you also rewrite the query to contain the same token.
+2. **A token unique to one document**, such as `pins_20251231`. It has to combine company *and* period. A period-only token like `period_20251231` fails for exactly the reason above: all four annual reports would carry it. A combined token appears in 540 chunks and nowhere else, so it is rare, high IDF, and unambiguous. Only works if you also rewrite the query to contain the same token, which means parsing both the company and the date out of the question.
 3. **Hybrid search.** Lexical scoring for the topic, a hard metadata filter for the period.
 
 All three mean giving up on pure lexical retrieval.

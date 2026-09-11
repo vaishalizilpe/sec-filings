@@ -102,7 +102,7 @@ It helps chunks that state a fact once and taxes chunks that legitimately repeat
 
 Provenance headers (a line on each chunk saying which company and period it came from) gave every chunk its company name. That solved the worst failure and quietly created a new one.
 
-IDF, inverse document frequency, measures how rare a word is across the corpus. Rare words narrow things down; common words do not. Stamping a date onto all 9,811 chunks collapsed the IDF of date words:
+IDF, inverse document frequency, measures how rare a word is across the corpus. Stamping a date onto all 9,811 chunks collapsed the IDF of date words:
 
 ```
 word        before headers            after headers
@@ -110,8 +110,21 @@ december    1,118 chunks, IDF 3.17    3,549 chunks, IDF 2.02
 2025        2,549 chunks, IDF 2.35    6,270 chunks, IDF 1.45
 ```
 
-The MAU question needs the period to find the right quarter. It moved from rank 27 to 25, which looked like a small improvement. It was **a large improvement and a new regression, cancelling out.**
+**But a falling IDF is not the lesson, and that is the trap.** The same change dropped "pinterest" from 4.80 to 2.65 and that was fine. The difference is whether the term still lines up with the thing it names:
+
+```
+"pinterest"  1,870 of 1,887 chunks are in the four Pinterest files   still works
+"december"   spread evenly across all four annual reports            broken
+```
+
+All four companies have a December 31 fiscal year end. After the header, "december" stopped meaning "Pinterest's December filing" and started meaning **"this is an annual report."**
+
+The MAU question moved from rank 27 to 25, which looked like a small improvement. It was **a large improvement and a new regression, cancelling out.**
 
 I missed it because the MAU result was already failing before and after. **A wrong number stays wrong, so nothing looked different.**
 
+**Two lessons here, and the second one is the sharper one.**
+
 **When a fix helps less than you predicted, check whether it also cost something.** "Small win" and "large win minus a new regression" are identical in the final number, and only one of them means what you think.
+
+**And do not read a metric's movement as the explanation.** "IDF dropped" was true of both terms and only explains one of them. The real question is whether a term still identifies what it claims to. That only surfaced when the file-by-file distribution was pulled, which happened because someone asked whether low IDF was the good one.
