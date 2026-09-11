@@ -30,14 +30,14 @@ naive          1/4      2/4    0.301
 
 Three metrics, three different stories about the same two changes.
 
-And the problem that is left was caused by one of the fixes. The header puts a date on every chunk, and search only finds things using rare words. Put a date everywhere and dates stop being useful:
+And the failure that is left was caused by one of the fixes. The provenance header stamps a date onto every chunk, which collapsed the IDF (inverse document frequency, a measure of how rare a word is across the corpus) of every date word:
 
-| Word | Before headers | After |
+| Word | Before headers | After headers |
 |---|---|---|
-| december | 1,118 chunks, helps | 3,549 chunks, barely helps |
-| 2025 | 2,549 chunks, helps | 6,270 chunks, barely helps |
+| december | 1,118 chunks, IDF 3.17 | 3,549 chunks, IDF 2.02 |
+| 2025 | 2,549 chunks, IDF 2.35 | 6,270 chunks, IDF 1.45 |
 
-The header paid for the company name by giving up the date. The MAU question needs the date. That is finding 7, and it is where simple word matching runs out.
+The header bought company disambiguation by spending period disambiguation. The MAU question needs the period. That is finding 7, and it is where pure lexical retrieval runs out.
 
 ## How it works
 
@@ -75,6 +75,6 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
 - **Fact-level scoring, MRR and per-question ranks are not yet in `run_eval.py`.** They were computed separately to produce the numbers above.
-- **MAU is the problem that is left, and no setting will fix it.** The three words that say which quarter ("december", "31", "2025") are the weakest words in the question, and the headers I added made them weaker. You cannot make a common word rare by changing how you count it. Fixing it means reading the date out of the question and filtering on it, which is a different kind of system.
+- **MAU is the failure that is left, and no parameter will fix it.** The three period terms ("december", "31", "2025") have the lowest IDF in the query, and the provenance headers lowered them further. IDF is a property of the corpus, not a setting, so you cannot raise it by changing how you count. Fixing it needs query parsing plus metadata filtering, or hybrid search. Either way it stops being pure lexical retrieval.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
