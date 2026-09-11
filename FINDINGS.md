@@ -147,30 +147,35 @@ naive          1/4      2/4    0.301
 
 ## 7. Fix one broke something else, and I did not notice
 
-MAU only moved from rank 27 to 25 when I added the headers. That looked like a small win. It was actually two things cancelling each other out.
+MAU only moved from rank 27 to 25 when I added the provenance headers (provenance means "where it came from", so these headers say which company and period a chunk belongs to). That looked like a small win. It was two things cancelling each other out.
 
-### The problem in plain terms
+### The problem
 
 The question is "how many MAUs did Pinterest have as of December 31, 2025?"
 
-Search works by finding rare words. A word in 44 chunks tells you a lot. A word in 6,270 chunks tells you almost nothing, because most chunks have it.
+Retrieval here is **lexical** (matching literal words) rather than **semantic** (matching meaning). It ranks chunks using **TF-IDF**, which multiplies two things:
 
-Here is every word in that question, sorted by how rare it is:
+- **TF, term frequency:** how often a word appears in this chunk
+- **IDF, inverse document frequency:** how rare the word is across all chunks
 
-| Word | Appears in | How much it helps | What it tells you |
+IDF is the part that matters here. A word in 44 chunks has high IDF and narrows things down a lot. A word in 6,270 chunks has low IDF and tells you almost nothing, because most chunks have it.
+
+Every word in that question, sorted by IDF:
+
+| Word | Appears in | IDF | What it tells you |
 |---|---|---|---|
-| maus | 44 chunks | a lot (6.38) | the topic |
-| monthly | 79 chunks | a lot (5.81) | the topic |
-| active | 269 chunks | some (4.59) | the topic |
-| users | 1,820 chunks | little (2.68) | the topic |
-| pinterest | 1,887 chunks | little (2.65) | the company |
-| december | 3,549 chunks | **almost nothing (2.02)** | **the date** |
-| 31 | 5,799 chunks | **almost nothing (1.53)** | **the date** |
-| 2025 | 6,270 chunks | **almost nothing (1.45)** | **the date** |
+| maus | 44 chunks | **6.38** | the topic |
+| monthly | 79 chunks | 5.81 | the topic |
+| active | 269 chunks | 4.59 | the topic |
+| users | 1,820 chunks | 2.68 | the topic |
+| pinterest | 1,887 chunks | 2.65 | the company |
+| december | 3,549 chunks | **2.02** | **the period** |
+| 31 | 5,799 chunks | **1.53** | **the period** |
+| 2025 | 6,270 chunks | **1.45** | **the period** |
 
-The three words that say *which quarter* are the three weakest words in the question.
+The three words carrying the **period** (which quarter) have the lowest IDF in the question.
 
-So search does what the numbers tell it to do. It finds chunks about MAUs and mostly ignores which quarter they are from. Top five results:
+So retrieval does exactly what the numbers tell it to. It finds chunks about MAUs and mostly ignores which quarter they came from. Top five results:
 
 ```
 1. PINS-10-Q-2025-09-30   MAU methodology, wrong quarter
@@ -180,38 +185,38 @@ So search does what the numbers tell it to do. It finds chunks about MAUs and mo
 5. PINS-10-K-2025-12-31   right file, but no 619 in it
 ```
 
-All Pinterest. None with the answer. Finding the company works. Finding the quarter does not.
+All Pinterest. None with the answer. Company disambiguation (telling the four companies apart) works. **Period disambiguation** does not.
 
 ### I caused half of this
 
-The header I added puts a date on every single chunk. All 9,811 of them. So date words went from uncommon to everywhere:
+The provenance header stamps a date onto every chunk. All 9,811 of them. So the IDF of date words collapsed:
 
-| Word | Before I added headers | After |
+| Word | Before headers | After headers |
 |---|---|---|
-| december | 1,118 chunks, helps a lot (3.17) | **3,549 chunks, helps almost none (2.02)** |
-| 2025 | 2,549 chunks, helps some (2.35) | **6,270 chunks, helps almost none (1.45)** |
+| december | 1,118 chunks, IDF 3.17 | **3,549 chunks, IDF 2.02** |
+| 2025 | 2,549 chunks, IDF 2.35 | **6,270 chunks, IDF 1.45** |
 
-**The header paid for the company name by giving up the date.** Headcount needed the company name and got it. MAU needed the date and lost it.
+**The header bought company disambiguation by spending period disambiguation.** Headcount needed the company name and got it. MAU needed the period and lost it.
 
-A word only helps if some chunks have it and others do not. Put it on everything and it stops helping.
+That is IDF working correctly. A word only narrows things down if some chunks have it and others do not. Put it on everything and its IDF drops to nothing.
 
-I did not notice this at the time because the MAU number was already wrong. **A wrong number stays wrong, so nothing looked different.**
+I missed it at the time because the MAU result was already failing. **A wrong number stays wrong, so nothing looked different.**
 
 ### Why this one is harder
 
-The first two problems were about *how much each word counts*. Change the scoring, problem solved.
+The first two failures were **weighting** problems: the right chunk existed and was scored too low. Changing how terms are scored fixed them.
 
-This one is not. The date is in the question. The date is in the header. And matching words still cannot use it, because **you cannot make a common word rare by changing how you count it.** There is no setting for this.
+This is not a weighting problem. The period is in the question and in the header, and lexical matching still cannot use it, because **you cannot raise a word's IDF by changing how you count it.** IDF is a property of the whole corpus (the full set of documents being searched), not a setting.
 
 Three real options, none of them small:
 
-1. **Read the date out of the question first, then only search December 2025 documents.** Accurate. Means the system has to understand the question, not just match words against it.
-2. **Put an unusual date tag in the header**, something like `period_20251231`, which would be rare and therefore useful. Only works if you also rewrite the question to use the same tag.
-3. **Do both kinds of search:** match words for the topic, filter on the date separately.
+1. **Query parsing plus metadata filtering.** Read the date out of the question, then only search documents matching that period. Accurate, and it means the system has to understand the query rather than match against it.
+2. **A distinctive period token** in the header, such as `period_20251231`. Rare, so high IDF. Only works if you also rewrite the query to contain the same token.
+3. **Hybrid search.** Lexical scoring for the topic, a hard metadata filter for the period.
 
-All three mean giving up on word matching alone.
+All three mean giving up on pure lexical retrieval.
 
-**That is the honest ending: this is as far as this approach goes, and I found that by measuring it, not by reading that it has limits.**
+**That is the honest ending: this is the edge of what TF-IDF can do, and I found it by measuring rather than by reading that it has limits.**
 
 ---
 
