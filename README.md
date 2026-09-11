@@ -39,6 +39,32 @@ And the failure that is left was caused by one of the fixes. The provenance head
 
 The header bought company disambiguation by spending period disambiguation. The MAU question needs the period. That is finding 7, and it is where pure lexical retrieval runs out.
 
+## When not to use this
+
+**For 16 documents, `grep` beats this pipeline.** It is exact, instant, free, and it never gets it wrong:
+
+```bash
+grep -o "Revenue was \$[0-9.]* billion" corpus/RDDT-10-K-2025-12-31.txt
+```
+
+That returns the right answer in under a second. The pipeline currently returns the right passage for 1 question out of 4. If the job is "find a known figure in a known filing," building retrieval is worse than `grep` in every way that can be measured.
+
+Retrieval earns its place when one of these is true:
+
+- **You do not know the exact words.** Ask "how is the ad business doing" and `grep` has nothing to match on. Retrieval ranks by overall similarity, so it can return something useful for a question with no keyword in it.
+- **The corpus is too big to read the matches.** 16 files is fine. 16,000 files and `grep` hands you 400 hits in no particular order.
+- **You want an answer, not a list of line numbers.** The generation step turns passages into a sentence, and the prompt makes it refuse when the passages do not contain the answer.
+
+At this corpus size, only the third is really true here, and that is worth being honest about.
+
+### The answer key was built with grep on purpose
+
+Every golden pair in `eval_set.json` was found with `grep` over the raw filings, not with this pipeline.
+
+That is deliberate. **You cannot test a system using the system itself.** Ground truth has to come from a method you trust more than the thing being measured, or you are just checking that the system agrees with itself.
+
+So: `grep` for truth, retrieval for the thing on trial.
+
 ## How it works
 
 ```
