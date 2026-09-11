@@ -94,18 +94,20 @@ It helps chunks that state a fact once and taxes chunks that legitimately repeat
 
 ---
 
-## 7. A fix can spend one signal to buy another, silently
+## 7. A fix can break something else while you are not looking
 
-Provenance headers gave every chunk its company name. That solved the unreachable case and broke a different one:
+Adding a header to every chunk gave each one its company name. That solved the worst problem and quietly created a new one.
 
 ```
-term        before provenance        after provenance
-december    1,118 chunks IDF 3.17    3,549 chunks IDF 2.02
-2025        2,549 chunks IDF 2.35    6,270 chunks IDF 1.45
+word        before headers              after headers
+december    1,118 chunks, helps (3.17)  3,549 chunks, barely helps (2.02)
+2025        2,549 chunks, helps (2.35)  6,270 chunks, barely helps (1.45)
 ```
 
-The MAU question needs the period to discriminate. Stamping a date on all 9,811 chunks made dates worthless for that. MAU moved 27 to 25, which looked like a weak improvement and was actually **two effects cancelling.**
+Search finds things using rare words. Put a date on all 9,811 chunks and dates stop being rare, so they stop helping.
 
-It went unnoticed because the metric it damaged was already failing. A number that is wrong stays wrong, so nothing looked different.
+The MAU question needs the date to find the right quarter. It moved from rank 27 to 25, which looked like a small improvement. It was **a big improvement and a new problem, cancelling out.**
 
-**When a fix helps less than expected, check whether it also cost something.** "Small improvement" and "large improvement minus a new regression" are indistinguishable in the aggregate, and only one of them means what you think.
+I missed it because the MAU number was already wrong before and still wrong after. **A wrong number stays wrong, so nothing looked different.**
+
+**When a fix helps less than you expected, check whether it also broke something.** "Small win" and "big win minus a new problem" look identical in the final number, and only one of them means what you think it means.

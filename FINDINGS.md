@@ -145,65 +145,73 @@ naive          1/4      2/4    0.301
 
 ---
 
-## 7. The provenance fix broke the period signal
+## 7. Fix one broke something else, and I did not notice
 
-MAU only moved from rank 27 to 25 on the provenance step. That was not a weak effect. It was two effects cancelling.
+MAU only moved from rank 27 to 25 when I added the headers. That looked like a small win. It was actually two things cancelling each other out.
 
-Ranking every term in the MAU query by how much it can discriminate:
+### The problem in plain terms
 
-| Query term | In N of 9,811 chunks | IDF | Carries |
+The question is "how many MAUs did Pinterest have as of December 31, 2025?"
+
+Search works by finding rare words. A word in 44 chunks tells you a lot. A word in 6,270 chunks tells you almost nothing, because most chunks have it.
+
+Here is every word in that question, sorted by how rare it is:
+
+| Word | Appears in | How much it helps | What it tells you |
 |---|---|---|---|
-| maus | 44 | **6.38** | topic |
-| monthly | 79 | 5.81 | topic |
-| active | 269 | 4.59 | topic |
-| users | 1,820 | 2.68 | topic |
-| pinterest | 1,887 | 2.65 | company |
-| december | 3,549 | **2.02** | period |
-| 31 | 5,799 | **1.53** | period |
-| 2025 | 6,270 | **1.45** | period |
+| maus | 44 chunks | a lot (6.38) | the topic |
+| monthly | 79 chunks | a lot (5.81) | the topic |
+| active | 269 chunks | some (4.59) | the topic |
+| users | 1,820 chunks | little (2.68) | the topic |
+| pinterest | 1,887 chunks | little (2.65) | the company |
+| december | 3,549 chunks | **almost nothing (2.02)** | **the date** |
+| 31 | 5,799 chunks | **almost nothing (1.53)** | **the date** |
+| 2025 | 6,270 chunks | **almost nothing (1.45)** | **the date** |
 
-**The three terms carrying the period are the three weakest in the query.** Retrieval optimises for "this chunk is about MAUs" and effectively ignores "from December 2025."
+The three words that say *which quarter* are the three weakest words in the question.
 
-Top five results for that question:
+So search does what the numbers tell it to do. It finds chunks about MAUs and mostly ignores which quarter they are from. Top five results:
 
 ```
-1. [0.379] PINS-10-Q-2025-09-30   MAU methodology paragraph
-2. [0.369] PINS-10-Q-2026-03-31   MAU definition
-3. [0.368] PINS-10-K-2025-12-31   right file, no 619
-4. [0.352] PINS-10-Q-2026-06-30   MAU section
-5. [0.352] PINS-10-K-2025-12-31   right file, no 619
+1. PINS-10-Q-2025-09-30   MAU methodology, wrong quarter
+2. PINS-10-Q-2026-03-31   MAU definition, wrong quarter
+3. PINS-10-K-2025-12-31   right file, but no 619 in it
+4. PINS-10-Q-2026-06-30   MAU section, wrong quarter
+5. PINS-10-K-2025-12-31   right file, but no 619 in it
 ```
 
-All Pinterest. None with the answer. The company signal works and the period signal does not.
+All Pinterest. None with the answer. Finding the company works. Finding the quarter does not.
 
-### The regression, which was self-inflicted
+### I caused half of this
 
-Provenance headers stamped a date onto all 9,811 chunks. That flooded the corpus with date terms:
+The header I added puts a date on every single chunk. All 9,811 of them. So date words went from uncommon to everywhere:
 
-| Term | Before provenance | After provenance |
+| Word | Before I added headers | After |
 |---|---|---|
-| december | 1,118 chunks, IDF 3.17 | **3,549 chunks, IDF 2.02** |
-| 2025 | 2,549 chunks, IDF 2.35 | **6,270 chunks, IDF 1.45** |
+| december | 1,118 chunks, helps a lot (3.17) | **3,549 chunks, helps almost none (2.02)** |
+| 2025 | 2,549 chunks, helps some (2.35) | **6,270 chunks, helps almost none (1.45)** |
 
-**The header bought the company signal by spending the period signal.** A term cannot discriminate if every candidate carries it. Headcount needed the company name and got it. MAU needed the period and the same change took it away.
+**The header paid for the company name by giving up the date.** Headcount needed the company name and got it. MAU needed the date and lost it.
 
-Worth stating plainly: this regression was introduced by a fix, went unnoticed at the time because the metric it damaged was already failing, and only surfaced when the remaining failure was examined directly rather than in aggregate.
+A word only helps if some chunks have it and others do not. Put it on everything and it stops helping.
 
-### Why this one is harder than the previous two
+I did not notice this at the time because the MAU number was already wrong. **A wrong number stays wrong, so nothing looked different.**
 
-The earlier failures were **weighting** problems. The passage existed, it was scored badly, and changing how terms are scored fixed it.
+### Why this one is harder
 
-This is not a weighting problem. The period is present in the query and present in the header, and lexical matching still cannot use it, because **common date words cannot be made rare by reweighting.** There is no parameter for this.
+The first two problems were about *how much each word counts*. Change the scoring, problem solved.
 
-Three real options, none of them a one-liner:
+This one is not. The date is in the question. The date is in the header. And matching words still cannot use it, because **you cannot make a common word rare by changing how you count it.** There is no setting for this.
 
-1. **Parse the period from the question and filter** before scoring, so only December 2025 documents compete. Accurate, and it requires the retriever to understand the query rather than match it.
-2. **Use a distinctive period token** in the header, such as `period_20251231`, which would be rare and high-IDF. Only works if the query is rewritten to contain the same token, so it needs query-side handling too.
-3. **Hybrid:** lexical scoring for topic, hard metadata filter for period.
+Three real options, none of them small:
 
-All three mean this stops being pure TF-IDF.
+1. **Read the date out of the question first, then only search December 2025 documents.** Accurate. Means the system has to understand the question, not just match words against it.
+2. **Put an unusual date tag in the header**, something like `period_20251231`, which would be rare and therefore useful. Only works if you also rewrite the question to use the same tag.
+3. **Do both kinds of search:** match words for the topic, filter on the date separately.
 
-**That is the honest conclusion: this is the edge of what the approach can do, found by measuring rather than by reading that TF-IDF has limits.**
+All three mean giving up on word matching alone.
+
+**That is the honest ending: this is as far as this approach goes, and I found that by measuring it, not by reading that it has limits.**
 
 ---
 
@@ -211,6 +219,6 @@ All three mean this stops being pure TF-IDF.
 
 Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.
 
-**Next:** see finding 7. MAU is a period-disambiguation failure, the provenance fix made it worse by flooding the corpus with date terms, and fixing it requires leaving pure lexical retrieval behind.
+**Next:** see finding 7. MAU fails because the question's date words are too common to help, and the headers I added made them more common. Fixing it means the system has to read the date out of the question, not just match words.
 
 See [METRICS.md](METRICS.md) for the six metric lessons on their own.
