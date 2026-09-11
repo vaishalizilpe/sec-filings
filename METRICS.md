@@ -128,3 +128,19 @@ I missed it because the MAU result was already failing before and after. **A wro
 **When a fix helps less than you predicted, check whether it also cost something.** "Small win" and "large win minus a new regression" are identical in the final number, and only one of them means what you think.
 
 **And do not read a metric's movement as the explanation.** "IDF dropped" was true of both terms and only explains one of them. The real question is whether a term still identifies what it claims to. That only surfaced when the file-by-file distribution was pulled, which happened because someone asked whether low IDF was the good one.
+
+---
+
+## 8. Ground truth must come from somewhere you trust more than the system
+
+Every golden pair here was found with `grep` over the raw filings, never with the pipeline.
+
+```bash
+grep -o "Revenue was \$[0-9.]* billion" corpus/RDDT-10-K-2025-12-31.txt
+```
+
+**You cannot test a system using the system itself.** If the answer key comes from the thing being measured, the score only tells you the system agrees with itself, which it always will.
+
+There is a second, more uncomfortable version of the same point. At 16 documents, `grep` answers these questions faster and more reliably than the pipeline does. That does not make the pipeline pointless, it makes the honest claim narrower: retrieval is for questions with no exact keyword to match, and for corpora too large to read the matches. Neither is true at this size.
+
+**Know what would beat your system, and say so before someone asks.**
