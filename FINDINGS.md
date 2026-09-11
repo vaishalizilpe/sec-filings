@@ -145,10 +145,72 @@ naive          1/4      2/4    0.301
 
 ---
 
+## 7. The provenance fix broke the period signal
+
+MAU only moved from rank 27 to 25 on the provenance step. That was not a weak effect. It was two effects cancelling.
+
+Ranking every term in the MAU query by how much it can discriminate:
+
+| Query term | In N of 9,811 chunks | IDF | Carries |
+|---|---|---|---|
+| maus | 44 | **6.38** | topic |
+| monthly | 79 | 5.81 | topic |
+| active | 269 | 4.59 | topic |
+| users | 1,820 | 2.68 | topic |
+| pinterest | 1,887 | 2.65 | company |
+| december | 3,549 | **2.02** | period |
+| 31 | 5,799 | **1.53** | period |
+| 2025 | 6,270 | **1.45** | period |
+
+**The three terms carrying the period are the three weakest in the query.** Retrieval optimises for "this chunk is about MAUs" and effectively ignores "from December 2025."
+
+Top five results for that question:
+
+```
+1. [0.379] PINS-10-Q-2025-09-30   MAU methodology paragraph
+2. [0.369] PINS-10-Q-2026-03-31   MAU definition
+3. [0.368] PINS-10-K-2025-12-31   right file, no 619
+4. [0.352] PINS-10-Q-2026-06-30   MAU section
+5. [0.352] PINS-10-K-2025-12-31   right file, no 619
+```
+
+All Pinterest. None with the answer. The company signal works and the period signal does not.
+
+### The regression, which was self-inflicted
+
+Provenance headers stamped a date onto all 9,811 chunks. That flooded the corpus with date terms:
+
+| Term | Before provenance | After provenance |
+|---|---|---|
+| december | 1,118 chunks, IDF 3.17 | **3,549 chunks, IDF 2.02** |
+| 2025 | 2,549 chunks, IDF 2.35 | **6,270 chunks, IDF 1.45** |
+
+**The header bought the company signal by spending the period signal.** A term cannot discriminate if every candidate carries it. Headcount needed the company name and got it. MAU needed the period and the same change took it away.
+
+Worth stating plainly: this regression was introduced by a fix, went unnoticed at the time because the metric it damaged was already failing, and only surfaced when the remaining failure was examined directly rather than in aggregate.
+
+### Why this one is harder than the previous two
+
+The earlier failures were **weighting** problems. The passage existed, it was scored badly, and changing how terms are scored fixed it.
+
+This is not a weighting problem. The period is present in the query and present in the header, and lexical matching still cannot use it, because **common date words cannot be made rare by reweighting.** There is no parameter for this.
+
+Three real options, none of them a one-liner:
+
+1. **Parse the period from the question and filter** before scoring, so only December 2025 documents compete. Accurate, and it requires the retriever to understand the query rather than match it.
+2. **Use a distinctive period token** in the header, such as `period_20251231`, which would be rare and high-IDF. Only works if the query is rewritten to contain the same token, so it needs query-side handling too.
+3. **Hybrid:** lexical scoring for topic, hard metadata filter for period.
+
+All three mean this stops being pure TF-IDF.
+
+**That is the honest conclusion: this is the edge of what the approach can do, found by measuring rather than by reading that TF-IDF has limits.**
+
+---
+
 ## Where it stands
 
 Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.
 
-**Next:** MAU is the interesting one left. The provenance header already carries "December 31, 2025" and it still loses to September quarters, because the 10-Qs mention December comparatives too. Period disambiguation needs more than a date in a header.
+**Next:** see finding 7. MAU is a period-disambiguation failure, the provenance fix made it worse by flooding the corpus with date terms, and fixing it requires leaving pure lexical retrieval behind.
 
 See [METRICS.md](METRICS.md) for the six metric lessons on their own.

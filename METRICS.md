@@ -91,3 +91,21 @@ revenue chunk     repeats "revenue" 5x  ->  HURT     (4 -> 6)
 It helps chunks that state a fact once and taxes chunks that legitimately repeat. Net positive across four questions, and a tradeoff rather than a free win.
 
 **"I enabled a flag and the number improved" is not a finding. Knowing which inputs the flag costs you is.**
+
+---
+
+## 7. A fix can spend one signal to buy another, silently
+
+Provenance headers gave every chunk its company name. That solved the unreachable case and broke a different one:
+
+```
+term        before provenance        after provenance
+december    1,118 chunks IDF 3.17    3,549 chunks IDF 2.02
+2025        2,549 chunks IDF 2.35    6,270 chunks IDF 1.45
+```
+
+The MAU question needs the period to discriminate. Stamping a date on all 9,811 chunks made dates worthless for that. MAU moved 27 to 25, which looked like a weak improvement and was actually **two effects cancelling.**
+
+It went unnoticed because the metric it damaged was already failing. A number that is wrong stays wrong, so nothing looked different.
+
+**When a fix helps less than expected, check whether it also cost something.** "Small improvement" and "large improvement minus a new regression" are indistinguishable in the aggregate, and only one of them means what you think.

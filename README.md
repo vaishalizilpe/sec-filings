@@ -30,6 +30,15 @@ naive          1/4      2/4    0.301
 
 Three metrics, three different stories about the same two changes.
 
+And the remaining failure turned out to be caused by one of the fixes. Provenance headers stamped a date onto all 9,811 chunks, which flooded the corpus with date terms and destroyed their ability to discriminate:
+
+| Term | Before provenance | After |
+|---|---|---|
+| december | 1,118 chunks, IDF 3.17 | 3,549 chunks, IDF 2.02 |
+| 2025 | 2,549 chunks, IDF 2.35 | 6,270 chunks, IDF 1.45 |
+
+The header bought the company signal by spending the period signal. MAU needs the period. That is finding 7, and it is where pure lexical retrieval runs out.
+
 **[FINDINGS.md](FINDINGS.md)** is the full log in the order it happened, including two predictions that turned out wrong.
 **[METRICS.md](METRICS.md)** is the six metric lessons on their own, with the numbers that paid for each.
 
@@ -69,6 +78,6 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
 - **Fact-level scoring, MRR and per-question ranks are not yet in `run_eval.py`.** They were computed separately to produce the numbers above.
-- **MAU is the open problem.** The provenance header already carries "December 31, 2025" and it still loses to September quarters, because the 10-Qs mention December comparatives too. Period disambiguation needs more than a date in a header.
+- **MAU is the open problem, and it is not a weighting problem.** The period terms are the three weakest in the query (IDF 2.02, 1.53, 1.45) and the provenance fix made them weaker. Common date words cannot be made rare by reweighting, so fixing this means parsing the period from the query and filtering, or a hybrid lexical-plus-metadata retriever. Either way it stops being pure TF-IDF.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
