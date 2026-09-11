@@ -144,3 +144,37 @@ grep -o "Revenue was \$[0-9.]* billion" corpus/RDDT-10-K-2025-12-31.txt
 There is a second, more uncomfortable version of the same point. At 16 documents, `grep` answers these questions faster and more reliably than the pipeline does. That does not make the pipeline pointless, it makes the honest claim narrower: retrieval is for questions with no exact keyword to match, and for corpora too large to read the matches. Neither is true at this size.
 
 **Know what would beat your system, and say so before someone asks.**
+
+---
+
+## 9. A score is only comparable against the same test set
+
+Adding the four corner questions moved the numbers:
+
+```
+              hit@3   hit@10    MRR
+4 questions    1/4      3/4    0.343
+8 questions    3/8      6/8    0.371
+```
+
+**Nothing about the pipeline changed.** Two of the four questions I added happen to be easy for it, so the aggregate rose.
+
+Comparing scores across different test sets tells you about the test set, not the system. **Say when the set changed, and never put two numbers from different sets in the same table without a note.**
+
+## 10. Name the failure precisely or you fix the wrong thing
+
+The last corner question failed at rank 84. I called it "the no-date corner" and proposed date parsing, filtering and boosting, all of which need a parsed date.
+
+The question was "how many people does Pinterest employ?" The document says "headcount." **The only shared word was "pinterest."** Adding a date would not have helped, because "employ" still does not match "headcount."
+
+Three proposed fixes, all aimed at a problem that was not the problem, because I named the failure by the most visible thing about the question rather than by checking which terms actually matched.
+
+---
+
+## 11. Look at what your preprocessing actually produced
+
+Nobody checked what the chunks contained until question 8 failed at rank 84. The check took five minutes and found that **456 of 9,811 chunks, 5% of the corpus, were machine-readable XBRL tagging with no readable content**, and that a tab-preservation step was being undone by a whitespace collapse two lines later.
+
+Both had been there since the first commit. Both were invisible in every metric, because a score tells you how well the system did on what it was given and never what it was given.
+
+**Print twenty random chunks before you trust any number computed over them.**

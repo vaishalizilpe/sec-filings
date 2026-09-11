@@ -18,5 +18,29 @@
     "question": "How many daily active users DAUs did Snap have in Q4 2025?",
     "expected_answer": "474",
     "expected_source_contains": "SNAP-10-K-2025-12-31"
+  },
+  {
+    "question": "What was Reddit's revenue for the year ended December 31, 2025?",
+    "expected_answer": "2.2 billion",
+    "expected_source_contains": "RDDT-10-K-2025-12-31",
+    "tests": "company disambiguation. All four companies say 'revenue was $X for the year ended December 31, 2025'. Only the company name separates them, and it has a weak IDF around 2.65."
+  },
+  {
+    "question": "By what percentage did Pinterest's MAUs grow compared to December 31, 2024?",
+    "expected_answer": "12%",
+    "expected_source_contains": "PINS-10-K-2025-12-31",
+    "tests": "comparative period. The question says 2024, the answer is in the 2025 filing. A hard filter on the year in the question would discard the document that holds the answer."
+  },
+  {
+    "question": "How many people does Pinterest employ?",
+    "expected_answer": "5,116",
+    "expected_source_contains": "PINS-10-Q-2026-06-30",
+    "tests": "no date in the question. 'Headcount was' appears in eight files, four Pinterest and four Meta, and Pinterest alone reports 5,265 / 5,205 / 5,287 / 5,116. Correct is defined as the most recent filing IN THIS CORPUS, which is Q2 2026. See the staleness note in README: most recent is not the same as current, and a good answer names the as-of date."
+  },
+  {
+    "question": "How much did Reddit's revenue grow last year?",
+    "expected_answer": "69%",
+    "expected_source_contains": "RDDT-10-K-2025-12-31",
+    "tests": "relative date. 'Last year' contains no year. The parser has to resolve it before any filter or boost can run."
   }
 ]

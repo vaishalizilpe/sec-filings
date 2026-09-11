@@ -59,11 +59,26 @@ def html_to_text(raw):
     later depends on being able to see where a block ended, and financial
     tables are meaningless once their row boundaries collapse into one line.
     """
+    # Inline XBRL: SEC filings embed machine-readable financial tagging in the
+    # same HTML as the prose. <ix:header> appears once per filing and holds all
+    # the hidden context: CIK numbers, taxonomy codes like us-gaap:CommonClassBMember,
+    # and hundreds of ISO dates. None of it is text anyone would ask about, and
+    # before this was stripped it produced 456 junk chunks out of 9,811, stuffed
+    # with date terms that then competed in every date-related search.
+    #
+    # The ix:nonFraction and ix:nonNumeric tags are left alone on purpose. Those
+    # wrap real displayed numbers, and the tag stripper below correctly keeps the
+    # value inside them.
+    raw = re.sub(r"(?is)<ix:header.*?</ix:header>", " ", raw)
     raw = re.sub(r"(?is)<(script|style).*?</\1>", " ", raw)
     raw = re.sub(r"(?i)</(p|div|tr|h[1-6]|li)>", "\n", raw)
     raw = re.sub(r"(?i)</t[dh]>", "\t", raw)
     text = html.unescape(re.sub(r"<[^>]+>", " ", raw))
-    text = re.sub(r"[ \t]+", " ", text)
+    # Collapse runs of spaces but NOT tabs. The line above turns each table cell
+    # boundary into a tab, and an earlier version of this collapsed them away two
+    # lines later, silently undoing the table structure this function claims to
+    # preserve.
+    text = re.sub(r"[ ]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n\n", text)
     return text.strip()
 

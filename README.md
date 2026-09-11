@@ -100,7 +100,7 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 ## Current state
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
-- **Fact-level scoring, MRR and per-question ranks are not yet in `run_eval.py`.** They were computed separately to produce the numbers above.
+- **Eight golden pairs now, four of them corner cases.** Fact-level scoring, MRR and per-question ranks are still computed outside `run_eval.py`. They were computed separately to produce the numbers above.
 - **MAU is the failure that is left, and no parameter will fix it.** The three period terms ("december", "31", "2025") have the lowest IDF in the query, and the provenance headers lowered them further. IDF is a property of the corpus, not a setting, so you cannot raise it by changing how you count. Fixing it needs query parsing plus metadata filtering, or hybrid search. Either way it stops being pure lexical retrieval.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
