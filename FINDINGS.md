@@ -2,17 +2,36 @@
 
 A working log. Each step came from not believing the previous number.
 
-Setup: 16 SEC filings, four companies (PINS, SNAP, RDDT, META), Q3 2025 through Q2 2026. 9,811 chunks at 800 characters with 150 overlap. TF-IDF. Four golden pairs.
+**Setup:** a **corpus** (the full set of documents being searched) of 16 SEC filings, four companies (PINS, SNAP, RDDT, META), Q3 2025 through Q2 2026. Split into 9,811 **chunks** (small passages, here 800 characters with 150 overlap) and indexed with TF-IDF.
 
-Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, so retrieval has to disambiguate company and period rather than just match a topic.
+Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, so **retrieval** (finding the right passages for a question) has to **disambiguate** both company and period, not just match a topic.
+
+## Terms used here
+
+| Term | What it means |
+|---|---|
+| **corpus** | the full set of documents being searched |
+| **chunk** | one small passage a document is split into |
+| **retrieval** | finding the passages most likely to answer a question |
+| **lexical** retrieval | matching literal words. The opposite is **semantic**, matching meaning, which is what embeddings do |
+| **TF-IDF** | the scoring method here. Term Frequency times Inverse Document Frequency |
+| **TF** | term frequency: how often a word appears in this chunk |
+| **IDF** | inverse document frequency: how rare a word is across the whole corpus. Rare words narrow things down, common words do not |
+| **sublinear TF** | count a repeated word as `1 + log(count)` instead of the raw count, so the tenth mention adds much less than the second |
+| **golden pairs** | the answer key. A question plus the answer you already know is correct, plus where it should come from. Also called **ground truth** |
+| **eval harness** | the scaffolding that runs the system against the answer key and reports a score |
+| **hit@k** | did a correct result land in the top k? Binary, pass or fail |
+| **MRR** | mean reciprocal rank. For each question take 1 divided by the rank of the first correct result, then average. Continuous, so it can see a move from rank 200 to rank 7 |
+| **provenance** | where a chunk came from: which company, which filing, which period |
+| **hallucination** | a model inventing an answer instead of admitting it does not know |
 
 ---
 
 ## 1. The metric reported 4/4 and the system did not work
 
-Retrieval was scored as "did any chunk from the expected **file** reach the top three." Pinterest's 10-K is 540 chunks and every query says "Pinterest," so the test was close to unfalsifiable.
+Retrieval was scored as "did any chunk from the expected **file** reach the top three." Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest," so landing some chunk from that file is close to guaranteed. The test was **unfalsifiable**: there was almost no input that could make it fail.
 
-Scoring on whether a retrieved passage actually **contains** the answer:
+Scoring instead on whether a retrieved passage actually **contains** the answer:
 
 | Question | Expected | Right file | Passage has the fact |
 |---|---|---|---|
@@ -31,27 +50,33 @@ The revenue query, top three in rank order:
 [0.285] META-10-K-2025-12-31.txt   wrong company
 ```
 
-The Pinterest chunk that rescued the score reads `Research and development $1,427,447 $1,240,564 15%`. R&D expense, not revenue growth, one point off the right answer. The Meta chunk carries 22%, which is Meta's revenue growth. Three plausible percentages from three companies, none of them correct.
+The Pinterest chunk that rescued the score reads `Research and development $1,427,447 $1,240,564 15%`. That is R&D expense, not revenue growth, and its percentage is one point off the right answer. The Meta chunk carries 22%, which is Meta's revenue growth. Three plausible percentages from three companies in the retrieved context, none of them correct.
 
 ---
 
 ## 2. Generation was never the problem
 
-With a working API key, answer correctness came back **1/4**, matching fact-level retrieval exactly, question by question.
+An **eval harness** should measure retrieval and generation separately, because they fail for different reasons and need different fixes.
+
+With a working API key, **answer correctness** came back **1/4**, matching fact-level retrieval exactly, question by question.
 
 Generation succeeded on the one question where retrieval surfaced the fact and refused on the three where it did not:
 
 > "It only mentions MAU data as of September 30, 2025 and September 30, 2024, but does not provide a figure for December 31, 2025."
 
-**Zero invented answers.** So the prompt was fine and retrieval was the whole problem. That refusal also named the real failure: right company, wrong quarter.
+**Zero hallucinations.** It never invented a number. So the prompt was fine and retrieval was the entire problem. Rewriting the prompt would have changed nothing.
 
-**Correction:** an earlier version of this log predicted the model would confidently answer 15% from that R&D table. It did not. The instruction "if the context doesn't contain the answer, say so explicitly, do not guess" held. The wrong answer was sitting in the context and only that line prevented it.
+That refusal also named the real failure in plain terms: right company, wrong quarter. That turns out to be finding 7.
+
+**Correction:** an earlier version of this log predicted the model would confidently answer 15% from that R&D table. It did not. The prompt instruction "if the context doesn't contain the answer, say so explicitly, do not guess" held. The wrong answer was sitting in the retrieved context and only that one line prevented it, which is worth knowing before anyone deletes it.
 
 ---
 
-## 3. Four questions, three different diseases
+## 3. Four questions, three different failure modes
 
-Sweeping k and recording the rank at which the correct fact first appears:
+A **k-sweep**: vary k (how many chunks retrieval returns) and record the rank at which the correct fact first appears.
+
+The point is diagnostic. If raising k finds the fact, it is a **ranking** problem, meaning the right passage exists and is scored too low. If it never appears, the passage is unreachable and no amount of tuning helps.
 
 | Answer | Rank | Diagnosis |
 |---|---|---|
@@ -68,15 +93,15 @@ Sweeping k and recording the rank at which the correct fact first appears:
   50   3/4
 ```
 
-Two are ranking problems where the passage exists and is outranked. One is not reachable at any k. **Raising k to 50 scores 3/4 and is a fake fix**: fifty passages of context, mostly noise, and fifty chances for generation to pick a wrong number.
+Two ranking problems, one unreachable, one working. **Raising k to 50 scores 3/4 and is a fake fix**: fifty passages of context, mostly noise, and fifty chances for generation to grab a wrong number. The score rises while the system gets worse.
 
 ---
 
-## 4. The unreachable chunk did not know what document it was in
+## 4. The unreachable chunk did not know which document it was in
 
 It holds four of the five query terms, including the rarest one:
 
-| Query term | In N of 9,811 chunks | IDF | Present |
+| Query term | In N of 9,811 chunks | IDF | Present in the chunk |
 |---|---|---|---|
 | pinterest | 218 | **4.80** | **no** |
 | headcount | 104 | 5.54 | yes |
@@ -84,9 +109,11 @@ It holds four of the five query terms, including the rarest one:
 | 31 | 1,763 | 2.72 | yes |
 | 2025 | 2,549 | 2.35 | yes |
 
-It has "headcount" and still cannot place in the top 200, because it never says "Pinterest," the strongest discriminator available. The chunk sits physically inside Pinterest's 10-K. The retriever sees 800 characters, not the filename.
+It has "headcount" and still cannot place in the top 200, because it never says "Pinterest." That term appears in only 218 of 9,811 chunks, giving it a high IDF, which makes it the strongest thing in the query for narrowing down candidates. The chunk forfeits it and drowns.
 
-**This killed the fix that looked obvious.** Sublinear TF downweights over-repetition and cannot reach a chunk that never says the term at all. That only surfaced because the term counts were pulled to *explain* the change before making it.
+The chunk sits physically inside Pinterest's 10-K. **Lexical retrieval sees 800 characters of text, not the filename they came from.**
+
+**This killed the fix that looked obvious.** Sublinear TF reduces the advantage a chunk gets from repeating a word, and cannot help a chunk that never says the word at all. That only surfaced because the term counts were pulled to *explain* the change before making it.
 
 > A change you can implement without looking is a change you can get wrong without noticing.
 
@@ -94,14 +121,14 @@ It has "headcount" and still cannot place in the top 200, because it never says 
 
 ## 5. Fix one: provenance headers
 
-Every chunk gets a line naming its company, form and period:
+Give every chunk its **provenance**, a line naming the company, filing type and period it came from:
 
 ```
 Pinterest (PINS) 10-K for the period ending December 31, 2025 (2025-12-31).
 • Headcount was 5,265.
 ```
 
-Applied **after** chunking so boundaries stay byte-identical and provenance is the only variable.
+Prepended **after** chunking, not before, so chunk boundaries stay byte-identical to the previous index and provenance is the only variable that changed.
 
 | Answer | Before | After |
 |---|---|---|
@@ -112,17 +139,21 @@ Applied **after** chunking so boundaries stay byte-identical and provenance is t
 
 **hit@3: 1/4, unchanged.** The prediction was 3/4 or 4/4. Wrong.
 
-Headcount went from unreachable to rank 33, the single failure this targeted. The metric did not move because k=3 is a cliff.
+Headcount went from unreachable to rank 33, which is the single failure this targeted. The metric did not move because hit@3 is a threshold, and rank 33 scores the same as rank 9,811.
 
-Side effect, intended: "pinterest" went from 218 chunks (IDF 4.80) to 1,887 (IDF 2.65). It stopped separating boilerplate from facts and started separating Pinterest from Snap, which is the job it should have had.
+**Intended side effect:** "pinterest" went from 218 chunks (IDF 4.80) to 1,887 (IDF 2.65). Its IDF dropped because now every Pinterest chunk claims the company. That is the point: it stopped separating boilerplate from facts and started separating Pinterest from Snap, which is the job it should have had. The cost of that trade shows up in finding 7.
 
 ---
 
 ## 6. Fix two: sublinear TF, which was premature rather than wrong
 
-After provenance, both the boilerplate and the fact chunk claim the company. The only remaining difference is repetition, which is exactly what sublinear TF attacks.
+**Sublinear TF** replaces a raw word count with `1 + log(count)`. Saying a word twice is real evidence; saying it twenty times is barely more informative than saying it five times, and a raw count rewards it as though it were four times better.
 
-| Chunk | says "pinterest" | linear | sublinear |
+It was dropped in finding 4, correctly at the time: the unreachable chunk contained the company name zero times, and you cannot reduce the advantage of repeating a word that is never said.
+
+Provenance changed the premise. Now both chunks claim the company, so **repetition is the only thing separating them on that term**, which is exactly what sublinear TF targets.
+
+| Chunk | says "pinterest" | raw TF | sublinear TF |
 |---|---|---|---|
 | Boilerplate | 4 | 4.00 | 2.39 |
 | Fact chunk | 1 | 1.00 | 1.00 |
@@ -130,9 +161,9 @@ After provenance, both the boilerplate and the fact chunk claim the company. The
 | Answer | naive | +prov | +subTF | Why |
 |---|---|---|---|---|
 | Snap DAU 474 | 1 | 1 | 1 | never broken |
-| Pinterest headcount 5,265 | >200 | 33 | **7** | was starved of the key term; provenance fed it, sublinear TF cut boilerplate's 4x repetition advantage |
-| Pinterest MAU 619 | 27 | 25 | **16** | **a period problem, not a company problem.** Top 16 results are 11 Pinterest 10-Q chunks and 5 Pinterest 10-K chunks. All Pinterest, so provenance discriminated nothing |
-| Pinterest revenue 16% | 6 | 4 | **6** | **regressed.** The correct chunk repeats "revenue" 5x, "increased" 5x, "2024" 4x. It was partly winning through repetition, and sublinear TF taxed it too |
+| Pinterest headcount 5,265 | >200 | 33 | **7** | was missing the highest-IDF term. Provenance supplied it, then sublinear TF cut boilerplate's 4x repetition advantage to 2.39x |
+| Pinterest MAU 619 | 27 | 25 | **16** | **a period problem, not a company problem.** The top 16 results are 11 Pinterest 10-Q chunks and 5 Pinterest 10-K chunks. All Pinterest, so provenance disambiguated nothing. See finding 7 |
+| Pinterest revenue 16% | 6 | 4 | **6** | **regressed.** The correct chunk repeats "revenue" 5 times, "increased" 5 times, "2024" 4 times. It was partly winning *through* repetition, and sublinear TF taxed it too |
 
 ```
               hit@3   hit@10    MRR
@@ -141,7 +172,7 @@ naive          1/4      2/4    0.301
 +sublinear TF  1/4      3/4    0.343
 ```
 
-**Sublinear TF is a tradeoff, not a free win.** It helps chunks that state a fact once and taxes chunks that legitimately repeat.
+**Sublinear TF is a tradeoff, not an improvement.** It helps chunks that state a fact once and taxes chunks that legitimately repeat. Net positive across these four questions, and it costs you the revenue case.
 
 ---
 
