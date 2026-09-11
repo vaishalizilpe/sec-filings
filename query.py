@@ -7,7 +7,7 @@ generation does not, that split matters for the eval harness (you can
 measure retrieval quality even before you've wired up an API key).
 
 Usage:
-    python query.py "What lift did the TIAA behavioral targeting test produce?"
+    python query.py "How many monthly active users did Pinterest have in 2025?"
 """
 import sys
 import pickle
@@ -55,7 +55,7 @@ Answer:"""
 
 
 if __name__ == "__main__":
-    query = sys.argv[1] if len(sys.argv) > 1 else "What lift did the TIAA behavioral targeting test produce?"
+    query = sys.argv[1] if len(sys.argv) > 1 else "How many monthly active users did Pinterest have in 2025?"
 
     with open("index.pkl", "rb") as f:
         index = pickle.load(f)

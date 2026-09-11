@@ -1,5 +1,5 @@
 """
-Day 3-4: Baseline RAG retriever over the resume-assassin folder.
+Baseline retriever over a corpus of SEC filings.
 
 Chunks every markdown file under the target folder, builds a TF-IDF index.
 TF-IDF is a legitimate production baseline, not a toy. Ship this first,
@@ -9,7 +9,7 @@ you've validated the baseline assumption: can retrieval reliably surface
 the right chunk for a real question.
 
 Usage:
-    python build_index.py /path/to/resume-assassin
+    python build_index.py corpus
     -> writes index.pkl in the current directory
 """
 import sys
