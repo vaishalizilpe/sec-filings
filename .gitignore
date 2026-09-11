@@ -1,0 +1,7 @@
+index.pkl
+*.pkl
+eval_results.json
+corpus/
+__pycache__/
+.env
+DS_Store
