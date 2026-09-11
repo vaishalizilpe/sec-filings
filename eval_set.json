@@ -42,5 +42,11 @@
     "expected_answer": "69%",
     "expected_source_contains": "RDDT-10-K-2025-12-31",
     "tests": "relative date. 'Last year' contains no year. The parser has to resolve it before any filter or boost can run."
+  },
+  {
+    "question": "What was Pinterest's share-based compensation expense in research and development for the three months ended June 30, 2026?",
+    "expected_answer": "212,537",
+    "expected_source_contains": "PINS-10-Q-2026-06-30",
+    "tests": "requires a table column header. The number sits in a row reading 212,537 / 145,939 / 353,213 / 265,421, which are three months 2026, three months 2025, six months 2026, six months 2025. Without the header rows above it there is no way to tell which column is which. Before table-aware chunking that chunk carried no header at all."
   }
 ]
