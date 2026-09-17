@@ -1,13 +1,13 @@
 # sec-filings
 
-A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying five separate times.
+A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying eight separate times.
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
 **The retriever is ordinary. The harness is the point.**
 
-**[FINDINGS.md](FINDINGS.md)** is the full log, twelve findings in the order they happened, including six predictions recorded as wrong.
-**[METRICS.md](METRICS.md)** is the fourteen metric lessons on their own, each with the numbers that paid for it.
+**[FINDINGS.md](FINDINGS.md)** is the full log, seventeen findings in the order they happened, including six predictions recorded as wrong.
+**[METRICS.md](METRICS.md)** is the fifteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
 
@@ -36,7 +36,7 @@ hybrid (w=0.2)       4/9      7/9   0.462
 
 ## What the harness caught
 
-Five times a number disagreed with reality. The full log is in [FINDINGS.md](FINDINGS.md); the short version:
+Eight times a number disagreed with reality. The full log is in [FINDINGS.md](FINDINGS.md); the short version:
 
 **A metric that could not fail.** File-level 4/4, fact-level 1/4.
 
@@ -47,6 +47,12 @@ Five times a number disagreed with reality. The full log is in [FINDINGS.md](FIN
 **A metric that went down on a change that helped.** Hybrid improved five of nine questions and MRR **fell**, because one question slipping rank 1 to 2 costs more than another jumping 27 to 7 gains.
 
 **Two metrics moving in opposite directions.** Reranking made file-level worse (8/9 to 7/9) and fact-level better (4/9 to 6/9). It reaches the right *file* less often and finds the actual *answer* more often. Measuring file-level only, you would have discarded the largest single improvement in the project.
+
+**A test that matched the wrong numbers.** The harness asked `"619" in text`, which is true inside `120,619` and `4,619`. Across the corpus that was 55 false matches out of 141, and it was used both to grade answers and to compute rank. A published hit@10 of 8/9 was really 7/9.
+
+**A score that could never be anything but zero.** `answer correctness 0/9` printed under two of the three retrievers, because both passed `generate=False` and never called the model. The claim reranking exists to support had gone untested for the life of the project.
+
+**A metric measuring the dice.** Four runs of identical code gave refusal scores of 1/3, 2/3, 2/3 and 3/3. `temperature` was never set, so the API default of 1.0 applied to a task with one correct answer. It cannot be fixed: `temperature`, `top_p` and `top_k` are all deprecated on this model, so generation figures are kept out of the results table entirely.
 
 ## When not to use this
 

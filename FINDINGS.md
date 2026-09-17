@@ -633,6 +633,149 @@ The reranker reaches the "right file" **less** often and finds the actual answer
 
 ---
 
+## 13. The substring test was wrong, and it was in two places
+
+`expected_answer in chunk["text"]` is how the harness decided whether a passage contained the answer. Six of the nine expected answers are short numbers, and `"619" in text` is true inside `120,619` and `4,619`.
+
+Across the 9,465 chunks:
+
+```
+expected        substring   bounded   false
+619                    12         2      10
+474                    42        10      32
+16%                    29        24       5
+12%                    37        34       3
+69%                    10         7       3
+5,116                   3         1       2
+                      ---       ---     ---
+                      141        86      55
+```
+
+**Thirty-nine percent of the matches were wrong, and the bias runs one way.** A false match sitting higher in the ranking is taken as *the* rank, because the rank is the position of the first match. It can only make a number look better, never worse.
+
+### It was not only the answer grader
+
+The same test appeared twice. Once on the generated answer, and once computing `rank`, which is what fact-level hit@3, hit@10 and MRR are built from. So this was never a generation problem that happened to also affect scoring. It was in the number the project is named after.
+
+The correction:
+
+```
+                   published        measured
+hybrid hit@10          8/9             7/9
+hybrid MRR           0.465           0.462
+reranked MRR         0.576           0.571
+```
+
+The headline survives: reranking still takes fact-level hit@3 from 4/9 to 6/9. One published figure was inflated by a whole question.
+
+### What the fix cannot do
+
+Requiring a non-digit on both sides stops `120,619`. It does nothing about a correct number stated about the wrong company or the wrong period. `5,116` is Pinterest's headcount and also appears in Reddit's 10-Q. A model that retrieves the wrong filing and quotes that number still scores correct.
+
+That needs a judge, not a rule, which is finding 17's problem.
+
+**This is the third time a metric in this project has tested presence instead of correctness.** File-level hit@3 did it, the README audit did it, and now the grader. The pattern is always the same: the cheap check is a substring, and a substring cannot tell you what a number *is*.
+
+---
+
+## 14. An eval set with no unanswerable questions cannot catch a model that guesses
+
+All nine golden pairs had answers. So a model that never refuses and always produces a number could not lose a single point for it. Over-claiming was structurally unmeasurable.
+
+Three questions added, each deliberately adjacent to something real, because a question with no relation to the corpus is trivially refused and tests nothing:
+
+```
+Snap's MONTHLY active users        "monthly active" appears in 0 Snap filings.
+                                   "daily active" appears in all 16, and 474,
+                                   the DAU figure, is sitting in the corpus.
+
+Pinterest ARPU in JAPAN            ARPU appears in 12 filings. Japan appears
+                                   in none.
+
+Reddit CEO's total compensation    The CEO is named throughout the 10-K.
+                                   Compensation is in the proxy statement.
+```
+
+Refusals are scored separately rather than folded into hit@3. A question with no answer has no rank, and mixing them would move the headline numbers for a reason unrelated to retrieval.
+
+**They caught something on the first run.** The model refused the Snap question and answered the other two anyway, inventing a Japanese ARPU figure for a country that does not appear in the corpus.
+
+---
+
+## 15. Only one of the three configurations ever called the model
+
+`answer correctness 0/9` printed under lexical and under reranked. It was not a result. Both calls passed `generate=False`, so neither ever reached the API, and that line could not have printed anything else.
+
+Only hybrid generated.
+
+**Which means the central claim of this project was never tested.** Reranking exists to move the right passage into the top 3 so the model can see it. It took fact-level hit@3 from 4/9 to 6/9, so two more questions have their answer in front of the model. Whether the model then answers them correctly is the entire point, and the configuration that would show it was the one with generation switched off.
+
+There was a second half to this. `eval_results.json` kept whichever configuration ran last, which was reranked, which did not generate. **The model's actual answers were written nowhere.** They could not be read back, and they could not be labelled by hand, which is the step every grader comparison depends on.
+
+---
+
+## 16. Reranking improved retrieval and did not improve answers
+
+With generation on all three:
+
+```
+              fact-level hit@3     answer correctness
+lexical            4/9                   3/9
+hybrid             4/9                   3/9
+reranked           6/9                   4/9
+```
+
+Two more questions retrieved, one more answered. The aggregate is hiding four changes that nearly cancel:
+
+```
+5,265         rank 5 -> 1     wrong -> right     working as intended
+16%           rank 6 -> 1     wrong -> right     working as intended
+2.2 billion   rank 1 -> 3     right -> wrong
+12%           rank 2 -> 1     right -> wrong     rank improved, answer did not
+```
+
+**The `12%` row cannot be a retrieval failure.** Its rank improved to the best position available and the answer got worse.
+
+The likely reason is a mismatch between what is optimised and what is graded. **The model is handed the top 3, not the top 1.** Reranking optimises the position of the chunk holding the answer, and in doing so reorders everything around it, which can evict a supporting passage the model was using. Promoting the right chunk is not free.
+
+**No claim is made from this.** See finding 17. Two gains against two losses, on nine questions, from a model that gives a different answer each run, is inside the noise. What can be said is that the aggregate describes none of it, which is [metric lesson 4](METRICS.md) arriving again.
+
+---
+
+## 17. The generation half of this harness cannot be made reproducible
+
+Four runs of identical code, identical corpus, identical retrieved context:
+
+```
+run          Snap MAU   ARPU Japan   CEO comp    correct refusals
+1            refused    answered     answered          1/3
+2            refused    refused      answered          2/3
+3                                                      2/3
+4            refused    refused      refused           3/3
+```
+
+One flip out of three cases is 33 percentage points.
+
+The cause was not the model or the retrieval. `temperature` was never set, so the API default of 1.0 applied. At temperature 1 the model samples from its probability distribution rather than taking the most likely token, so a sentence that would begin "619" sometimes begins "The context does not". **The harness was measuring the sampling dice.**
+
+The obvious fix does not exist here:
+
+```
+temperature=0   ->  400  `temperature` is deprecated for this model.
+top_p=0.01      ->  400  `top_p` is deprecated for this model.
+top_k=1         ->  400  `top_k` is deprecated for this model.
+```
+
+`claude-sonnet-5` exposes no sampling controls. The variance is a property of the system and it stays.
+
+### What that changes about publishing
+
+**Generation figures stay out of the results table.** That table is retrieval-only, retrieval is deterministic, and every figure in it reproduces exactly. Generation numbers appear here, as a range across runs, and no claim is made from a difference smaller than the observed spread.
+
+Repeated runs would characterise the run-to-run half of this and do nothing about the other half. Nine questions is nine questions however many times you run it. That second source of variance is only fixed by more questions.
+
+---
+
 ## Where it stands
 
 ```
