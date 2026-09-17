@@ -1,13 +1,13 @@
 # sec-filings
 
-A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying four separate times.
+A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying five separate times.
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
 **The retriever is ordinary. The harness is the point.**
 
-**[FINDINGS.md](FINDINGS.md)** is the full log, eleven findings in the order they happened, including six predictions recorded as wrong.
-**[METRICS.md](METRICS.md)** is the thirteen metric lessons on their own, each with the numbers that paid for it.
+**[FINDINGS.md](FINDINGS.md)** is the full log, twelve findings in the order they happened, including six predictions recorded as wrong.
+**[METRICS.md](METRICS.md)** is the fourteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
 
@@ -82,7 +82,7 @@ So: `grep` for truth, retrieval for the thing on trial.
 fetch_filings.py    ->  corpus/*.txt       16 filings, 6.1 MB
 build_index.py      ->  index.pkl          9,465 chunks, TF-IDF with sublinear term frequency
 build_embeddings.py ->  embeddings.pkl     the same chunks as 384-dim vectors
-query.py            ->  answer             lexical, semantic or hybrid retrieval, then generation
+query.py            ->  answer             lexical, hybrid or reranked retrieval, then generation
 run_eval.py         ->  eval_results.json  both retrievers side by side, per-question ranks
 ```
 
@@ -115,11 +115,22 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 ## Current state
 
 ```
-lexical only    fact-level hit@3 4/9   hit@10 6/9   MRR 0.486
-hybrid (w=0.2)  fact-level hit@3 4/9   hit@10 8/9   MRR 0.465
+                 hit@3   hit@10    MRR
+lexical only       4/9      6/9   0.486
+hybrid (w=0.2)     4/9      8/9   0.465
++ reranking        6/9      8/9   0.576
 ```
 
-**The pipeline answers four of nine questions in its top three results.** The diagnosis is the work here, not the performance.
+**The pipeline answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.
+
+Reranking produced the clearest demonstration of the finding this repo is named for. The two retrieval metrics moved in **opposite directions**:
+
+```
+file-level hit@3    8/9  ->  7/9   worse
+fact-level hit@3    4/9  ->  6/9   better
+```
+
+It reaches the right *file* less often and finds the actual *answer* more often, because the right file was never what mattered. Measuring file-level only, you would have concluded reranking hurt and discarded the largest single improvement in the project.
 
 **Nine golden pairs**, five written to break things on purpose: company disambiguation, a comparative period, a relative date, vocabulary mismatch, and a fact that only exists in a table. Every figure in this README comes out of `run_eval.py`.
 
