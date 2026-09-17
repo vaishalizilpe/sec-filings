@@ -9,9 +9,35 @@ measure retrieval quality even before you've wired up an API key).
 Usage:
     python query.py "How many monthly active users did Pinterest have in 2025?"
 """
+import os
 import sys
 import pickle
 from sklearn.metrics.pairwise import cosine_similarity
+
+
+def load_api_key():
+    """ANTHROPIC_API_KEY from the environment, falling back to a local .env.
+
+    The environment wins, so `export ANTHROPIC_API_KEY=...` still overrides.
+    .env is gitignored and is never read for anything except this one name.
+
+    Written by hand rather than with python-dotenv: this repo has three
+    dependencies and a .env parser is four lines. A key that lives in a shell
+    you opened an hour ago is a key that silently is not there when something
+    else runs, which cost two rounds of debugging a `generation skipped` that
+    had nothing to do with the code.
+    """
+    key = os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(path):
+        return None
+    for line in open(path):
+        line = line.strip()
+        if line.startswith("ANTHROPIC_API_KEY="):
+            return line.split("=", 1)[1].strip().strip("\"'")
+    return None
 
 
 def retrieve(query, index, k=3):
@@ -98,7 +124,6 @@ def rerank(query, candidates, k=3):
 
 
 def answer(query, retrieved_chunks):
-    import os
     context = "\n\n---\n\n".join(c["text"] for c, score in retrieved_chunks)
     prompt = f"""Answer the question using ONLY the context below. If the context doesn't contain the answer, say so explicitly, do not guess.
 
@@ -109,9 +134,10 @@ Question: {query}
 
 Answer:"""
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    api_key = load_api_key()
     if not api_key:
-        return "[No ANTHROPIC_API_KEY set. Retrieval ran, generation skipped. Set the env var to test end-to-end.]"
+        return ("[No ANTHROPIC_API_KEY. Retrieval ran, generation skipped. "
+                "Put it in .env, see .env.example, or export it.]")
 
     # Generation must never take down the retrieval measurement. The whole point
     # of the eval harness is that retrieval and generation fail independently,

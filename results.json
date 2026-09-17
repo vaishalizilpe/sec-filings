@@ -1,5 +1,5 @@
 {
-  "source_fingerprint": "5247e0837bd1411c",
+  "source_fingerprint": "36373dd94cd5fe60",
   "lexical": {
     "n_answerable": 9,
     "n_refusal": 3,
@@ -7,9 +7,9 @@
     "fact_hit_3": 4,
     "fact_hit_10": 6,
     "mrr": 0.486,
-    "answer_correct": 0,
-    "refusals_correct": 0,
-    "generation_ran": false
+    "answer_correct": 3,
+    "refusals_correct": 3,
+    "generation_ran": true
   },
   "hybrid": {
     "n_answerable": 9,
@@ -18,9 +18,9 @@
     "fact_hit_3": 4,
     "fact_hit_10": 7,
     "mrr": 0.462,
-    "answer_correct": 0,
-    "refusals_correct": 0,
-    "generation_ran": false
+    "answer_correct": 3,
+    "refusals_correct": 2,
+    "generation_ran": true
   },
   "reranked": {
     "n_answerable": 9,
@@ -29,8 +29,8 @@
     "fact_hit_3": 6,
     "fact_hit_10": 8,
     "mrr": 0.571,
-    "answer_correct": 0,
-    "refusals_correct": 0,
-    "generation_ran": false
+    "answer_correct": 4,
+    "refusals_correct": 2,
+    "generation_ran": true
   }
 }
