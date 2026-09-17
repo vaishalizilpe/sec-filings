@@ -1,0 +1,117 @@
+{
+  "_what_this_is": "Human labels for the generated answers of ONE run. Ground truth for comparing graders, which is the only thing it is for. Produced by reading each answer beside its grade, which is how the boundary bug in finding 13 was caught.",
+  "_labels": {
+    "correct": "The model asserted the right answer.",
+    "wrong": "The model asserted something false, or the right figure for the wrong entity, or refused while holding the answer in its context.",
+    "refused": "The model declined. Counted as correct behaviour when retrieval never put the answer in the top 3, because that failure is already measured by fact-level hit@3 and counting it here would count it twice."
+  },
+  "_pinned_to_run": {
+    "config": "reranked",
+    "source_fingerprint": "c5d831cf0f6a9855",
+    "caveat": "temperature, top_p and top_k are all deprecated on claude-sonnet-5, so generation is not reproducible. See finding 17. A re-run produces different answers and these labels may no longer describe them. Check model_answer against the new output before reusing a label. If source_fingerprint no longer matches results.json, the code changed too."
+  },
+  "labels": [
+    {
+      "question": "What was Pinterest's headcount as of December 31, 2025?",
+      "expected_answer": "5,265",
+      "answerable": true,
+      "rank_of_answer": 1,
+      "model_answer": "Pinterest's headcount was 5,265 as of December 31, 2025.",
+      "label": "correct",
+      "note": "Said 5,265. Matches."
+    },
+    {
+      "question": "How many monthly active users MAUs did Pinterest have as of December 31, 2025?",
+      "expected_answer": "619",
+      "answerable": true,
+      "rank_of_answer": 18,
+      "model_answer": "The context does not explicitly state the exact number of global MAUs as of December 31, 2025. It only mentions that \"As of December 31, 2025, global MAUs inc...\" but the figure is cut off and not provided.",
+      "label": "refused",
+      "note": "Retrieval never put the answer in the top 3 (rank 18), so the model never saw it and declined rather than guessing. Scored as a refusal, not wrong: the retrieval failure is already counted in fact-level hit@3, and marking this wrong would count it twice."
+    },
+    {
+      "question": "By what percentage did Pinterest revenue increase in 2025 compared to 2024?",
+      "expected_answer": "16%",
+      "answerable": true,
+      "rank_of_answer": 1,
+      "model_answer": "Pinterest's revenue for the year ended December 31, 2025 increased by 16% on a reported basis (and 15% on a constant currency basis) compared to the year ended December 31, 2024.",
+      "label": "correct",
+      "note": "Said 16% reported, 15% constant currency. Matches."
+    },
+    {
+      "question": "How many daily active users DAUs did Snap have in Q4 2025?",
+      "expected_answer": "474",
+      "answerable": true,
+      "rank_of_answer": 2,
+      "model_answer": "Snap had 474 million daily active users (DAUs) on average in the quarter ended December 31, 2025.",
+      "label": "correct",
+      "note": "Said 474 million DAUs. Matches."
+    },
+    {
+      "question": "What was Reddit's revenue for the year ended December 31, 2025?",
+      "expected_answer": "2.2 billion",
+      "answerable": true,
+      "rank_of_answer": 3,
+      "model_answer": "The context does not explicitly state Reddit's total revenue for the year ended December 31, 2025. It only provides Reddit's revenue for the three and nine months ended September 30, 2025 ($584,911 thousand and $1,476,899 thousand, respectively). The full-year 2025 revenue figure is not given for Reddit in this context.",
+      "label": "wrong",
+      "note": "Refused, but the chunk at rank 3 said 'Revenue was $2.2 billion for the year ended December 31, 2025' in plain text. Generation failure, not retrieval."
+    },
+    {
+      "question": "By what percentage did Pinterest's MAUs grow compared to December 31, 2024?",
+      "expected_answer": "12%",
+      "answerable": true,
+      "rank_of_answer": 1,
+      "model_answer": "The context does not provide the specific percentage growth in MAUs compared to December 31, 2024. It only states that global MAUs \"increased\" as of December 31, 2025, without quantifying the percentage.",
+      "label": "wrong",
+      "note": "Refused, but the chunk at rank 1 said 'an increase of 12% compared to December 31, 2024' in plain text. Generation failure, not retrieval."
+    },
+    {
+      "question": "How many people does Pinterest employ?",
+      "expected_answer": "5,116",
+      "answerable": true,
+      "rank_of_answer": 8,
+      "model_answer": "The context does not contain the answer.",
+      "label": "refused",
+      "note": "Retrieval never put the answer in the top 3 (rank 8), so the model never saw it and declined rather than guessing. Scored as a refusal, not wrong: the retrieval failure is already counted in fact-level hit@3, and marking this wrong would count it twice."
+    },
+    {
+      "question": "How much did Reddit's revenue grow last year?",
+      "expected_answer": "69%",
+      "answerable": true,
+      "rank_of_answer": 6,
+      "model_answer": "The context does not explicitly state Reddit's year-over-year revenue growth rate or \"last year\" figure. It only provides total revenue figures: $1,476,899 (thousand) for the nine months ended September 30, 2025, compared to $872,498 (thousand) for the nine months ended September 30, 2024, and $584,911 (thousand) for the three months ended September 30, 2025, compared to $348,351 (thousand) for the three months ended September 30, 2024. The context does not contain a calculated growth percentage or annual (full-year) revenue comparison, so I cannot definitively answer how much revenue grew \"last year\" based on the provided information.",
+      "label": "refused",
+      "note": "Retrieval never put the answer in the top 3 (rank 6), so the model never saw it and declined rather than guessing. Scored as a refusal, not wrong: the retrieval failure is already counted in fact-level hit@3, and marking this wrong would count it twice."
+    },
+    {
+      "question": "What was Pinterest's share-based compensation expense in research and development for the three months ended June 30, 2026?",
+      "expected_answer": "212,537",
+      "answerable": true,
+      "rank_of_answer": 1,
+      "model_answer": "Pinterest's share-based compensation expense in research and development for the three months ended June 30, 2026 was **$212,537 thousand** (i.e., $212.537 million).",
+      "label": "correct",
+      "note": "Said $212,537 thousand. Matches."
+    },
+    {
+      "question": "How many monthly active users (MAUs) did Snap have in Q4 2025?",
+      "answerable": false,
+      "model_answer": "The context does not contain information about monthly active users (MAUs) for Q4 2025. It only provides daily active user (DAU) figures for Q3 2025 (477 million), Q1 2026 (483 million), and Q2 2026 (493 million).",
+      "label": "refused",
+      "note": "Correct refusal. Snap reports DAU only, and it said so."
+    },
+    {
+      "question": "What was Pinterest's average revenue per user in Japan in 2025?",
+      "answerable": false,
+      "model_answer": "The context does not contain information about Pinterest's average revenue per user (ARPU) specifically for Japan in 2025. It only provides overall ARPU ($3.16) and United States revenue figures, but no country-specific ARPU data for Japan.",
+      "label": "refused",
+      "note": "Correct refusal. It named the overall ARPU of $3.16 and said there is no Japan figure."
+    },
+    {
+      "question": "What was the CEO's total compensation at Reddit in 2025?",
+      "answerable": false,
+      "model_answer": "The CEO's annual total compensation for the year ended December 31, 2025 was $4,250,450.",
+      "label": "wrong",
+      "note": "Not a refusal failure. It answered $4,250,450, which is real but is SNAP's CEO, from SNAP-10-K-2025-12-31.txt:3129. Right number, wrong company. This is the failure a boundary rule cannot catch."
+    }
+  ]
+}
