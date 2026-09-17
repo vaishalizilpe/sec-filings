@@ -77,7 +77,7 @@ So: `grep` for truth, retrieval for the thing on trial.
 ## How it works
 
 ```
-fetch_filings.py    ->  corpus/*.txt       16 filings, 6.1 MB
+fetch_filings.py    ->  corpus/*.txt       16 filings, 6.2 MB
 build_index.py      ->  index.pkl          9,465 chunks, TF-IDF with sublinear term frequency
 build_embeddings.py ->  embeddings.pkl     the same chunks as 384-dim vectors
 query.py            ->  answer             lexical, hybrid or reranked retrieval, then generation
