@@ -230,3 +230,23 @@ fact-level hit@3    4/9  ->  6/9   better
 Anyone measuring file-level only would have concluded reranking hurt and thrown away the largest single improvement in the project.
 
 **A metric you have proven wrong is still worth printing, next to the one you trust.** The moment they disagree is the moment you learn something, and a discredited metric is only dangerous when it is the only one in the room.
+
+
+## 15. Check what randomness you left switched on before you average anything
+
+Four runs of identical code gave four different scores. The instinct was to run it five times and report the mean. The cause turned out to be a parameter nobody had set, so the average would have been a precise measurement of a default.
+
+**An average over a knob you forgot to exists is not a measurement of your system.** Before treating variance as something to smooth out, find out where it comes from. Sometimes it is a property of the problem. Here it was `temperature`, sitting at the API default of 1.0, on a task with exactly one correct answer and nothing to be creative about.
+
+The second half matters more, and it survives even when the knob is unreachable.
+
+**Repeated runs fix run-to-run variance. They do nothing about sample variance.** Those are two different problems that look identical in a spreadsheet:
+
+```
+run-to-run     the same question answered differently      more runs fixes this
+sample         only nine questions exist                   only more questions fix this
+```
+
+Run the eval a thousand times and you get a very tight estimate of how this system behaves on these nine questions. That says almost nothing about the tenth. Averaging harder produces confidence, not validity, and confidence in a number that does not generalise is worse than the noisy version, because the noisy version at least looked uncertain.
+
+[Finding 17](FINDINGS.md) is where this came from: the sampling controls turned out to be deprecated on the model, so the run-to-run half cannot be fixed at all, and the honest response was to keep generation figures out of the headline table rather than average them into looking solid.
