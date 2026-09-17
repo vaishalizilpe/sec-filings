@@ -54,6 +54,49 @@ def retrieve_hybrid(query, index, embeddings, model, k=3, w=HYBRID_WEIGHT):
     return [(index["chunks"][i], combined[i]) for i in top]
 
 
+# How many candidates the reranker re-scores. Not swept, chosen by reasoning:
+# it has to exceed the worst rank we currently see (16), with headroom for
+# questions not yet written. 50 is also a common production default, which is
+# weak evidence it is sane rather than invented.
+#
+# Reranking reorders, it does not rescue. If an answer sits at rank 300 in the
+# cheap search, a window of 50 never sees it.
+RERANK_CANDIDATES = 50
+
+_cross_encoder = None
+
+
+def _load_cross_encoder():
+    """Lazy, because it downloads 80MB and most runs do not need it."""
+    global _cross_encoder
+    if _cross_encoder is None:
+        from sentence_transformers import CrossEncoder
+        _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+    return _cross_encoder
+
+
+def rerank(query, candidates, k=3):
+    """Re-score candidates with a cross-encoder, return the best k.
+
+    The retrievers above encode question and chunk SEPARATELY, so a chunk is
+    encoded before the question exists and cannot know what was asked. That is
+    what makes them fast enough to run over 9,465 chunks.
+
+    A cross-encoder reads the question and the chunk TOGETHER and scores the
+    pair, so it can notice that "employ" in a question lines up with "headcount"
+    in a passage. Far more accurate, and far too slow to run over the whole
+    corpus, which is why it only sees the top RERANK_CANDIDATES.
+    """
+    if not candidates:
+        return []
+    model = _load_cross_encoder()
+    pairs = [(query, c["text"]) for c, _ in candidates]
+    scores = model.predict(pairs, show_progress_bar=False)
+    assert len(scores) == len(candidates), "reranker returned the wrong number of scores"
+    order = sorted(range(len(candidates)), key=lambda i: scores[i], reverse=True)
+    return [(candidates[i][0], float(scores[i])) for i in order[:k]]
+
+
 def answer(query, retrieved_chunks):
     import os
     context = "\n\n---\n\n".join(c["text"] for c, score in retrieved_chunks)

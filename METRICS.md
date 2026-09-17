@@ -211,3 +211,22 @@ MRR is the mean of 1/rank, so it weights the top of the ranking heavily. Rank 1 
 hit@10 told the opposite story, 6/9 to 8/9, from the same nine ranks.
 
 **Neither metric is wrong. Both are summaries, and a summary of nine numbers moving in different directions is not decidable.** Read the per-question table, decide, and then say which metric you are choosing and why.
+
+---
+
+## 14. Keep the broken metric, because one day it will disagree
+
+File-level scoring was discredited in lesson 1. It reported 4/4 on a system running at 1/4, because Pinterest's 10-K is 540 chunks and every query names Pinterest, so hitting the right file is close to free.
+
+It was kept in the harness output anyway. Reranking is why that paid:
+
+```
+file-level hit@3    8/9  ->  7/9   worse
+fact-level hit@3    4/9  ->  6/9   better
+```
+
+**The same change made one metric worse and the other better.** The reranker reaches the right file less often and finds the actual answer more often.
+
+Anyone measuring file-level only would have concluded reranking hurt and thrown away the largest single improvement in the project.
+
+**A metric you have proven wrong is still worth printing, next to the one you trust.** The moment they disagree is the moment you learn something, and a discredited metric is only dangerous when it is the only one in the room.

@@ -566,6 +566,63 @@ What the sweep does establish, because it holds across every setting: **a small 
 
 ---
 
+## 12. Reranking, and the two metrics moving in opposite directions
+
+After hybrid, nothing was badly broken. Five questions sat between rank 5 and 16: the right passage was being found, just not first. That is a **ranking** problem, and it has a standard answer.
+
+### Why a second model
+
+The retrievers so far encode the question and the chunk **separately**, then compare the results. A chunk is encoded before the question exists, so it cannot know what was asked. That is what makes them fast enough to run over 9,465 chunks.
+
+A **cross-encoder** reads the question and the chunk **together** and scores the pair, so it can notice that "employ" in a question lines up with "headcount" in a passage. Far more accurate, and far too slow for a whole corpus.
+
+So: cheap search narrows 9,465 to 50, then the expensive model orders those 50.
+
+`RERANK_CANDIDATES = 50` was chosen by reasoning, not swept. It has to exceed the worst rank currently seen (16) with headroom, and 50 is a common production default. **Reranking reorders, it does not rescue:** an answer at rank 300 in the cheap search is never seen.
+
+### Results
+
+```
+answer          lexical   hybrid   +rerank
+  5,265               9        5         1
+  619                22       16        18   worse
+  16%                 7        6         1
+  474                 1        1         2   worse
+  2.2 billion         1        1         3   worse
+  12%                 1        2         1
+  5,116              27        7         8   worse
+  69%                28        9         6
+  212,537             1        1         1
+
+                 lexical   hybrid   +rerank
+fact-level hit@3     4/9      4/9       6/9
+fact-level hit@10    6/9      8/9       8/9
+MRR                0.486    0.465     0.576
+```
+
+**hit@3 moves for the first time in the project, 4/9 to 6/9.** MRR 0.576 is the highest recorded. Two questions go from rank 5 and 6 to rank 1.
+
+The prediction written before running was: mid-ranked questions improve, at least one rank-1 question gets worse, aggregate improves modestly. **That one was right.** Three rank-1 questions slipped (474 to 2, 2.2bn to 3) and `employ` went 7 to 8.
+
+### The clearest demonstration of finding 1 in the whole project
+
+The two retrieval metrics moved in **opposite directions**:
+
+```
+file-level hit@3    8/9  ->  7/9   worse
+fact-level hit@3    4/9  ->  6/9   better
+```
+
+The reranker reaches the "right file" **less** often and finds the actual answer **more** often, because the right file was never what mattered. Pinterest's 10-K is 540 chunks, so hitting that file is close to free; hitting the passage containing 5,265 is the hard part.
+
+**Anyone measuring file-level only would have concluded reranking made things worse and discarded the best result in the project.**
+
+### What it did not fix
+
+`619`, the MAU question, went 16 to 18. Reranking cannot solve period disambiguation, because the passages it is ordering are all Pinterest MAU passages from different quarters and the cross-encoder has no more idea which quarter is wanted than TF-IDF did. That failure is still open and still needs the date parsed out of the question.
+
+---
+
 ## Where it stands
 
 Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.
