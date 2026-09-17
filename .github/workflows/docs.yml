@@ -1,0 +1,36 @@
+name: docs
+
+# Every figure published in a .md file must match results.json. Six figures went
+# stale across three documents from one change to run_eval.py, and nothing caught
+# it because nothing was checking.
+#
+# This does NOT run the eval. Doing so would mean fetching 16 filings from SEC
+# EDGAR, rebuilding the index, and downloading the embedder and the cross-encoder
+# on every pull request. Minutes per run, flaky, and dependent on someone else's
+# servers.
+#
+# The gap that leaves is a stale results.json, and check_docs.py closes it with a
+# hash of the source files rather than timestamps. git does not store mtimes, so a
+# fresh checkout stamps everything with the checkout time and any time-based check
+# would be meaningless here. If the code changed and the eval was not re-run, the
+# fingerprint differs and this fails.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # No dependencies. check_docs.py uses the standard library only, on purpose:
+      # a check that needs an install is a check that breaks for unrelated reasons.
+      - run: python3 check_docs.py

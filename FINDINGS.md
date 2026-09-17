@@ -6,6 +6,16 @@ A working log. Each step came from not believing the previous number.
 
 Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, so **retrieval** (finding the right passages for a question) has to **disambiguate** both company and period, not just match a topic.
 
+> **A note on every number below.** Until finding 13, the harness decided whether a
+> passage contained the answer with a plain substring test. `"619" in text` is true
+> inside `120,619` and `4,619`, and across the corpus that was 55 false matches out
+> of 141. A false match sitting higher in the ranking is taken as *the* rank, so the
+> bias runs one way and every figure measured before that fix read better than the
+> truth. The comparisons still hold, because both sides of each one carried the same
+> bias, but the individual decimals in findings 1 to 12 are not reliable and cannot
+> be re-derived, since the code has moved on. They are kept rather than deleted, for
+> the same reason the rest of this file keeps its mistakes.
+
 ## Terms used here
 
 | Term | What it means |
@@ -628,8 +638,8 @@ The reranker reaches the "right file" **less** often and finds the actual answer
 ```
                    hit@3   hit@10    MRR
 lexical only         4/9      6/9   0.486
-hybrid (w=0.2)       4/9      8/9   0.465
-+ reranking          6/9      8/9   0.576
+hybrid (w=0.2)       4/9      7/9   0.462
++ reranking          6/9      8/9   0.571
 ```
 
 Six changes shipped, two of them reverted after measurement. Nine golden pairs, five written to break things on purpose.

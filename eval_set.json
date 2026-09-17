@@ -3,54 +3,78 @@
     "question": "What was Pinterest's headcount as of December 31, 2025?",
     "expected_answer": "5,265",
     "expected_source_contains": "PINS-10-K-2025-12-31",
-    "tests": "the original baseline question. The answer is a bare bullet, 'Headcount was 5,265', whose only label is a section header hundreds of characters away."
+    "tests": "the original baseline question. The answer is a bare bullet, 'Headcount was 5,265', whose only label is a section header hundreds of characters away.",
+    "answerable": true
   },
   {
     "question": "How many monthly active users MAUs did Pinterest have as of December 31, 2025?",
     "expected_answer": "619",
     "expected_source_contains": "PINS-10-K-2025-12-31",
-    "tests": "period disambiguation. Retrieval keeps returning Pinterest 10-Q chunks from September quarters for a question about December. The period terms have the lowest IDF in the query."
+    "tests": "period disambiguation. Retrieval keeps returning Pinterest 10-Q chunks from September quarters for a question about December. The period terms have the lowest IDF in the query.",
+    "answerable": true
   },
   {
     "question": "By what percentage did Pinterest revenue increase in 2025 compared to 2024?",
     "expected_answer": "16%",
     "expected_source_contains": "PINS-10-K-2025-12-31",
-    "tests": "the boilerplate attractor. The top hit was Snap's 10-K, and the Pinterest chunk that scored the 'hit' was an R&D expense table reading 15% against a correct answer of 16%."
+    "tests": "the boilerplate attractor. The top hit was Snap's 10-K, and the Pinterest chunk that scored the 'hit' was an R&D expense table reading 15% against a correct answer of 16%.",
+    "answerable": true
   },
   {
     "question": "How many daily active users DAUs did Snap have in Q4 2025?",
     "expected_answer": "474",
     "expected_source_contains": "SNAP-10-K-2025-12-31",
-    "tests": "the control. Fact and company name sit in the same chunk, so this has been rank 1 through every change and catches regressions."
+    "tests": "the control. Fact and company name sit in the same chunk, so this has been rank 1 through every change and catches regressions.",
+    "answerable": true
   },
   {
     "question": "What was Reddit's revenue for the year ended December 31, 2025?",
     "expected_answer": "2.2 billion",
     "expected_source_contains": "RDDT-10-K-2025-12-31",
-    "tests": "company disambiguation. All four companies say 'revenue was $X for the year ended December 31, 2025'. Only the company name separates them, and it has a weak IDF around 2.65."
+    "tests": "company disambiguation. All four companies say 'revenue was $X for the year ended December 31, 2025'. Only the company name separates them, and it has a weak IDF around 2.65.",
+    "answerable": true
   },
   {
     "question": "By what percentage did Pinterest's MAUs grow compared to December 31, 2024?",
     "expected_answer": "12%",
     "expected_source_contains": "PINS-10-K-2025-12-31",
-    "tests": "comparative period. The question says 2024, the answer is in the 2025 filing. A hard filter on the year in the question would discard the document that holds the answer."
+    "tests": "comparative period. The question says 2024, the answer is in the 2025 filing. A hard filter on the year in the question would discard the document that holds the answer.",
+    "answerable": true
   },
   {
     "question": "How many people does Pinterest employ?",
     "expected_answer": "5,116",
     "expected_source_contains": "PINS-10-Q-2026-06-30",
-    "tests": "no date in the question. 'Headcount was' appears in eight files, four Pinterest and four Meta, and Pinterest alone reports 5,265 / 5,205 / 5,287 / 5,116. Correct is defined as the most recent filing IN THIS CORPUS, which is Q2 2026. See the staleness note in README: most recent is not the same as current, and a good answer names the as-of date."
+    "tests": "no date in the question. 'Headcount was' appears in eight files, four Pinterest and four Meta, and Pinterest alone reports 5,265 / 5,205 / 5,287 / 5,116. Correct is defined as the most recent filing IN THIS CORPUS, which is Q2 2026. See the staleness note in README: most recent is not the same as current, and a good answer names the as-of date.",
+    "answerable": true
   },
   {
     "question": "How much did Reddit's revenue grow last year?",
     "expected_answer": "69%",
     "expected_source_contains": "RDDT-10-K-2025-12-31",
-    "tests": "relative date. 'Last year' contains no year. The parser has to resolve it before any filter or boost can run."
+    "tests": "relative date. 'Last year' contains no year. The parser has to resolve it before any filter or boost can run.",
+    "answerable": true
   },
   {
     "question": "What was Pinterest's share-based compensation expense in research and development for the three months ended June 30, 2026?",
     "expected_answer": "212,537",
     "expected_source_contains": "PINS-10-Q-2026-06-30",
-    "tests": "requires a table column header. The number sits in a row reading 212,537 / 145,939 / 353,213 / 265,421, which are three months 2026, three months 2025, six months 2026, six months 2025. Without the header rows above it there is no way to tell which column is which. Before table-aware chunking that chunk carried no header at all."
+    "tests": "requires a table column header. The number sits in a row reading 212,537 / 145,939 / 353,213 / 265,421, which are three months 2026, three months 2025, six months 2026, six months 2025. Without the header rows above it there is no way to tell which column is which. Before table-aware chunking that chunk carried no header at all.",
+    "answerable": true
+  },
+  {
+    "question": "How many monthly active users (MAUs) did Snap have in Q4 2025?",
+    "answerable": false,
+    "tests": "Refusal. Snap reports DAU only and never MAU. The corpus contains 474 as Snap's DAU, so a model that will not refuse is likely to hand that number back relabelled."
+  },
+  {
+    "question": "What was Pinterest's average revenue per user in Japan in 2025?",
+    "answerable": false,
+    "tests": "Refusal. ARPU tables appear in 12 filings; Japan appears in none. Tests whether a real metric plus a fabricated geography produces an invented figure."
+  },
+  {
+    "question": "What was the CEO's total compensation at Reddit in 2025?",
+    "answerable": false,
+    "tests": "Refusal. The CEO is named throughout the 10-K but compensation is disclosed in the proxy statement, not here. Tests a plausible question about a real person with no answer in scope."
   }
 ]
