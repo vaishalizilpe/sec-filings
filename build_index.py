@@ -17,7 +17,6 @@ import os
 import re
 import pickle
 import glob
-import datetime
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
@@ -37,31 +36,15 @@ def chunk_markdown(text, source, chunk_size=800, overlap=150):
     return chunks
 
 
-TICKERS = {"PINS": "Pinterest", "SNAP": "Snap", "RDDT": "Reddit", "META": "Meta"}
-
-
-def provenance_header(source):
-    """One line naming the company, form and period a chunk came from.
-
-    A chunk is 800 characters of text. The retriever sees only those characters,
-    never the filename, so a bullet reading "Headcount was 5,265" has no idea
-    which company it describes. It then forfeits the strongest term in the query
-    and becomes unreachable at any k. This puts the document's identity inside
-    every chunk that came from it.
-
-    Deliberately applied AFTER chunking so chunk boundaries are unchanged and
-    provenance is the only variable between index versions.
-    """
-    m = re.match(r"([A-Z]+)-(10-[KQ])-(\d{4})-(\d{2})-(\d{2})", source)
-    if not m:
-        return ""
-    ticker, form, y, mo, d = m.groups()
-    company = TICKERS.get(ticker, ticker)
-    date = datetime.date(int(y), int(mo), int(d))
-    # Both spellings on purpose: queries say "December 31, 2025", filenames say
-    # "2025-12-31", and neither should be the only way in.
-    return (f"{company} ({ticker}) {form} for the period ending "
-            f"{date.strftime('%B')} {date.day}, {y} ({y}-{mo}-{d}).")
+# Provenance headers were removed on 2026-09-17 after an ablation. They stamped a
+# line naming the company, form and period onto every chunk. See FINDINGS.md
+# finding 10: they diluted "pinterest" from 219 chunks (idf 4.76) to 1,817 chunks
+# (idf 2.65), and a Pinterest query started returning Snap documents. Testing all
+# 16 on/off combinations of the four features put provenance-off ahead of
+# provenance-on, MRR 0.486 against 0.438.
+#
+# Do not re-add without re-running the ablation. Provenance helps only the chunks
+# that lack the company name, and taxes every chunk that already has it.
 
 
 def build_index(root_dir):
@@ -77,12 +60,7 @@ def build_index(root_dir):
             print(f"  skip {path}: {e}")
             continue
         rel = os.path.relpath(path, root_dir)
-        file_chunks = chunk_markdown(text, rel)
-        header = provenance_header(rel)
-        if header:
-            for c in file_chunks:
-                c["text"] = header + "\n" + c["text"]
-        all_chunks.extend(file_chunks)
+        all_chunks.extend(chunk_markdown(text, rel))
 
     print(f"Built {len(all_chunks)} chunks")
 
