@@ -26,8 +26,8 @@ Nine golden pairs now, five of them written to break things on purpose. Same nin
 ```
                    hit@3   hit@10    MRR
 lexical only         4/9      6/9   0.486
-hybrid (w=0.2)       4/9      8/9   0.465
-+ reranking          6/9      8/9   0.576
+hybrid (w=0.2)       4/9      7/9   0.462
++ reranking          6/9      8/9   0.571
 ```
 
 **The system answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.
@@ -115,8 +115,8 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 ```
                  hit@3   hit@10    MRR
 lexical only       4/9      6/9   0.486
-hybrid (w=0.2)     4/9      8/9   0.465
-+ reranking        6/9      8/9   0.576
+hybrid (w=0.2)     4/9      7/9   0.462
++ reranking        6/9      8/9   0.571
 ```
 
 **The pipeline answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.

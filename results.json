@@ -1,0 +1,36 @@
+{
+  "source_fingerprint": "5247e0837bd1411c",
+  "lexical": {
+    "n_answerable": 9,
+    "n_refusal": 3,
+    "file_hit_3": 8,
+    "fact_hit_3": 4,
+    "fact_hit_10": 6,
+    "mrr": 0.486,
+    "answer_correct": 0,
+    "refusals_correct": 0,
+    "generation_ran": false
+  },
+  "hybrid": {
+    "n_answerable": 9,
+    "n_refusal": 3,
+    "file_hit_3": 8,
+    "fact_hit_3": 4,
+    "fact_hit_10": 7,
+    "mrr": 0.462,
+    "answer_correct": 0,
+    "refusals_correct": 0,
+    "generation_ran": false
+  },
+  "reranked": {
+    "n_answerable": 9,
+    "n_refusal": 3,
+    "file_hit_3": 7,
+    "fact_hit_3": 6,
+    "fact_hit_10": 8,
+    "mrr": 0.571,
+    "answer_correct": 0,
+    "refusals_correct": 0,
+    "generation_ran": false
+  }
+}
