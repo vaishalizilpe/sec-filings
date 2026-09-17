@@ -2,22 +2,26 @@
   {
     "question": "What was Pinterest's headcount as of December 31, 2025?",
     "expected_answer": "5,265",
-    "expected_source_contains": "PINS-10-K-2025-12-31"
+    "expected_source_contains": "PINS-10-K-2025-12-31",
+    "tests": "the original baseline question. The answer is a bare bullet, 'Headcount was 5,265', whose only label is a section header hundreds of characters away."
   },
   {
     "question": "How many monthly active users MAUs did Pinterest have as of December 31, 2025?",
     "expected_answer": "619",
-    "expected_source_contains": "PINS-10-K-2025-12-31"
+    "expected_source_contains": "PINS-10-K-2025-12-31",
+    "tests": "period disambiguation. Retrieval keeps returning Pinterest 10-Q chunks from September quarters for a question about December. The period terms have the lowest IDF in the query."
   },
   {
     "question": "By what percentage did Pinterest revenue increase in 2025 compared to 2024?",
     "expected_answer": "16%",
-    "expected_source_contains": "PINS-10-K-2025-12-31"
+    "expected_source_contains": "PINS-10-K-2025-12-31",
+    "tests": "the boilerplate attractor. The top hit was Snap's 10-K, and the Pinterest chunk that scored the 'hit' was an R&D expense table reading 15% against a correct answer of 16%."
   },
   {
     "question": "How many daily active users DAUs did Snap have in Q4 2025?",
     "expected_answer": "474",
-    "expected_source_contains": "SNAP-10-K-2025-12-31"
+    "expected_source_contains": "SNAP-10-K-2025-12-31",
+    "tests": "the control. Fact and company name sit in the same chunk, so this has been rank 1 through every change and catches regressions."
   },
   {
     "question": "What was Reddit's revenue for the year ended December 31, 2025?",

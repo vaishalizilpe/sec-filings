@@ -76,7 +76,7 @@ So: `grep` for truth, retrieval for the thing on trial.
 fetch_filings.py  ->  corpus/*.txt      16 filings, 6.1 MB
 build_index.py    ->  index.pkl         9,811 chunks, provenance headers, TF-IDF
 query.py          ->  answer            top-k retrieval, then generation
-run_eval.py       ->  eval_results.json two scores
+run_eval.py       ->  eval_results.json file-level and fact-level hit@3, hit@10, MRR, per-question ranks
 ```
 
 Four stages, each persisting to disk, so retrieval can be re-run without re-downloading and re-scored without re-indexing. The real reason they are separate is diagnostic: **each stage fails differently, and fused together you cannot tell which one broke.**
@@ -105,7 +105,7 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 ## Current state
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
-- **Eight golden pairs now, four of them corner cases.** Fact-level scoring, MRR and per-question ranks are still computed outside `run_eval.py`. They were computed separately to produce the numbers above.
+- **Nine golden pairs, five of them written to break things on purpose.** `run_eval.py` reports fact-level hit@3, hit@10, MRR and the rank of the first correct chunk per question, alongside the old file-level number so the gap stays visible. Every figure in this README comes out of that script.
 - **The failure that is left is vocabulary mismatch, and no chunking or weighting change touches it.** "How many people does Pinterest employ" shares one word with the chunk that answers it, because the document says "headcount". Three chunking strategies and two weighting changes have all failed on it or made it worse. That is what embeddings are for, and it is the next step.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
