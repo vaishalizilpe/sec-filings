@@ -2,9 +2,13 @@
 
 A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying eight separate times.
 
-The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
+> **In four lines.**
+> Ask a question about 16 SEC filings, get the passage that answers it.
+> The retriever is ordinary: keyword search, embeddings, a cross-encoder reranker.
+> The harness is the point, and it caught its own scoring lying eight times.
+> The first one reported **4/4 on a system that was really at 1/4**.
 
-**The retriever is ordinary. The harness is the point.**
+The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
 **[FINDINGS.md](FINDINGS.md)** is the full log, seventeen findings in the order they happened, including six predictions recorded as wrong.
 **[METRICS.md](METRICS.md)** is the fifteen metric lessons on their own, each with the numbers that paid for it.
@@ -13,9 +17,22 @@ The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Re
 
 **The first retrieval metric reported 4/4 on a system that was actually at 1/4.**
 
-It scored a hit whenever any chunk from the expected *file* reached the top three. Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest", so grabbing *some* chunk from the right file was close to guaranteed. The test could barely fail.
+Same four questions, same retrieved passages, two different questions asked of them:
 
-Scoring instead on whether a retrieved passage actually **contains** the answer gave 1/4.
+```
+                      "did any chunk from     "does a returned passage
+                       the right FILE         actually CONTAIN
+                       reach the top 3?"       the answer?"
+
+  Pinterest headcount        hit                    miss
+  Pinterest MAUs             hit                    miss
+  Pinterest revenue %        hit                    miss
+  Snap DAUs                  hit                    hit
+                            ────                   ────
+                             4/4                    1/4
+```
+
+Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest", so landing *some* chunk from the right file was close to guaranteed. **The test could barely fail.**
 
 That was the original eval set of four questions, in September 2026. It is a claim about a broken metric, not about performance, which is why it stays the headline even though the current numbers are different.
 
@@ -62,7 +79,7 @@ Eight times a number disagreed with reality. The full log is in [FINDINGS.md](FI
 grep -o "Revenue was \$[0-9.]* billion" corpus/RDDT-10-K-2025-12-31.txt
 ```
 
-That returns the right answer in under a second. The pipeline currently returns the right passage for 1 question out of 4. If the job is "find a known figure in a known filing," building retrieval is worse than `grep` in every way that can be measured.
+That returns the right answer in under a second. The pipeline currently returns the right passage for 6 questions out of 9. If the job is "find a known figure in a known filing," building retrieval is worse than `grep` in every way that can be measured.
 
 Retrieval earns its place when one of these is true:
 
@@ -82,15 +99,33 @@ So: `grep` for truth, retrieval for the thing on trial.
 
 ## How it works
 
+**Retrieve wide and cheap, rerank narrow and expensive.** One question moves left to right:
+
+```mermaid
+flowchart LR
+    Q["question"] --> TFIDF["TF-IDF<br/>keyword match"]
+    Q --> EMB["embeddings<br/>meaning match"]
+    TFIDF --> HY["hybrid<br/>80% lexical<br/>20% semantic"]
+    EMB --> HY
+    HY -->|"9,465 chunks<br/>scored, top 50 kept"| RR["cross-encoder<br/>reads question and<br/>passage together"]
+    RR -->|"top 3"| GEN["generation"]
+    GEN --> A["answer, or a refusal"]
+```
+
+The first stage scores all 9,465 chunks because each was turned into numbers once, in advance. The second stage reads the question and each passage together, which is far more accurate and far too slow to run on the whole corpus, so it only ever sees 50.
+
+**The model is handed the top 3, not the top 1.** That gap between what reranking optimises and what generation consumes is [finding 16](FINDINGS.md).
+
+The stages persist to disk, so retrieval can be re-run without re-downloading and re-scored without re-indexing. The real reason they are separate is diagnostic: **each stage fails differently, and fused together you cannot tell which one broke.**
+
 ```
 fetch_filings.py    ->  corpus/*.txt       16 filings, 6.2 MB
 build_index.py      ->  index.pkl          9,465 chunks, TF-IDF with sublinear term frequency
 build_embeddings.py ->  embeddings.pkl     the same chunks as 384-dim vectors
 query.py            ->  answer             lexical, hybrid or reranked retrieval, then generation
-run_eval.py         ->  eval_results.json  both retrievers side by side, per-question ranks
+run_eval.py         ->  eval_results.json  every config, per-question ranks, generated answers
+results.json        ->  the only place a published number is authored
 ```
-
-Four stages, each persisting to disk, so retrieval can be re-run without re-downloading and re-scored without re-indexing. The real reason they are separate is diagnostic: **each stage fails differently, and fused together you cannot tell which one broke.**
 
 Four design decisions worth calling out:
 
