@@ -1,6 +1,6 @@
 # Metric lessons
 
-Seven lessons, each one paid for by a number that turned out to be lying. In the order they were learned.
+Fourteen lessons, each one paid for by a number that turned out to be lying. In the order they were learned.
 
 Terms are defined in [FINDINGS.md](FINDINGS.md#terms-used-here).
 
