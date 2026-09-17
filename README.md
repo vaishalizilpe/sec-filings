@@ -11,44 +11,42 @@ The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Re
 
 ## Headline
 
-The first retrieval metric reported **4/4**. The system was actually at **1/4**.
+**The first retrieval metric reported 4/4 on a system that was actually at 1/4.**
 
-It scored a hit whenever any chunk from the expected *file* reached the top three. Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest," so the test was close to unfalsifiable. Scoring on whether a retrieved passage actually **contains** the answer gave 1/4.
+It scored a hit whenever any chunk from the expected *file* reached the top three. Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest", so grabbing *some* chunk from the right file was close to guaranteed. The test could barely fail.
 
-Current state, nine golden pairs, four of them written to break things on purpose:
+Scoring instead on whether a retrieved passage actually **contains** the answer gave 1/4.
 
-```
-lexical only    hit@3 4/9   hit@10 6/9   MRR 0.486
-hybrid (w=0.2)  hit@3 4/9   hit@10 8/9   MRR 0.465
-```
+That was the original eval set of four questions, in September 2026. It is a claim about a broken metric, not about performance, which is why it stays the headline even though the current numbers are different.
 
-The system answers four of nine questions in its top three results. **The diagnosis is the work here, not the performance.**
+## Current results
 
-Hybrid improved five questions, left three unchanged and made one worse by a single rank, and **MRR went down anyway**, because rank 1 to 2 costs more MRR than rank 27 to 7 gains. The per-question table in finding 11 is the evidence; the aggregate is not.
-
-Two fixes in, on the original four questions, the hardest one moved from unreachable in 9,811 chunks to rank 7 while the headline metric never moved at all:
+Nine golden pairs now, five of them written to break things on purpose. Same nine questions across all three rows, so only the retriever changes:
 
 ```
-              hit@3   hit@10    MRR
-naive          1/4      2/4    0.301
-+provenance    1/4      2/4    0.330
-+sublinear TF  1/4      3/4    0.343
+                   hit@3   hit@10    MRR
+lexical only         4/9      6/9   0.486
+hybrid (w=0.2)       4/9      8/9   0.465
++ reranking          6/9      8/9   0.576
 ```
 
-Three metrics, three different stories about the same two changes. A binary threshold could not see a thirtyfold improvement.
+**The system answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.
 
-And one of those fixes turned out to be hurting. An **ablation**, testing all 16 on/off combinations of the four features, put the best configuration at **provenance headers off, sublinear TF on**:
+**These are not comparable to the 1/4 above.** That was four questions, these are nine, and five of the nine were written specifically to be hard. A score only means something against a fixed test set, which is [metric lesson 9](METRICS.md).
 
-```
- xbrl  tab  prov  subTF    MRR
- True True FALSE   True   0.486   <- best, now shipped
- True True  True   True   0.438   <- was shipped
- True True FALSE  FALSE   0.371   <- dropping both: 9th of 16
-```
+## What the harness caught
 
-Provenance headers stamped company and period onto every chunk. That diluted "pinterest" from 219 chunks (IDF 4.76) to 1,817 (IDF 2.65), and a Pinterest query started returning **Snap documents**. They are removed. Finding 10 has the per-question tradeoff, which is three questions better and three worse.
+Five times a number disagreed with reality. The full log is in [FINDINGS.md](FINDINGS.md); the short version:
 
-Sublinear TF looked useless when tested alone and was not. It was masked by provenance being worse. **Features interact, so one-at-a-time removals do not add up.**
+**A metric that could not fail.** File-level 4/4, fact-level 1/4.
+
+**A metric that could not see success.** Two fixes took the hardest question from unreachable in 9,811 chunks to rank 7, and `hit@3` read 1/4 through all three measurements. It is a threshold, so rank 33 and rank 9,811 score identically.
+
+**A fix that was hurting.** An ablation across all 16 feature combinations found provenance headers diluted "pinterest" from 219 chunks to 1,817, and a Pinterest question started returning **Snap documents**. Removed.
+
+**A metric that went down on a change that helped.** Hybrid improved five of nine questions and MRR **fell**, because one question slipping rank 1 to 2 costs more than another jumping 27 to 7 gains.
+
+**Two metrics moving in opposite directions.** Reranking made file-level worse (8/9 to 7/9) and fact-level better (4/9 to 6/9). It reaches the right *file* less often and finds the actual *answer* more often. Measuring file-level only, you would have discarded the largest single improvement in the project.
 
 ## When not to use this
 
