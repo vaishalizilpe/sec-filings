@@ -111,10 +111,27 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 
 ## Current state
 
-- **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
-- **Nine golden pairs, five of them written to break things on purpose.** `run_eval.py` reports fact-level hit@3, hit@10, MRR and the rank of the first correct chunk per question, alongside the old file-level number so the gap stays visible. Every figure in this README comes out of that script.
-- **`HYBRID_WEIGHT = 0.2` is not validated.** It was picked by sweeping eight values against nine golden pairs, which is tuning on a test set far too small to justify a decimal place. The direction holds across every setting (a little semantic helps, a lot destroys exact-number questions); the specific value does not.
-- **Pure embeddings are worse than pure TF-IDF here**, MRR 0.205 against 0.486. An exact figure like "$2.2 billion" is not a semantic concept, so it falls from rank 1 to 33. Hybrid exists because the two retrievers fail differently.
-- **Period disambiguation is still unsolved.** "MAUs as of December 31, 2025" returns Pinterest chunks from September quarters. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document.
-- Four golden pairs. Twelve is the target.
-- TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
+```
+lexical only    fact-level hit@3 4/9   hit@10 6/9   MRR 0.486
+hybrid (w=0.2)  fact-level hit@3 4/9   hit@10 8/9   MRR 0.465
+```
+
+**The pipeline answers four of nine questions in its top three results.** The diagnosis is the work here, not the performance.
+
+**Nine golden pairs**, five written to break things on purpose: company disambiguation, a comparative period, a relative date, vocabulary mismatch, and a fact that only exists in a table. Every figure in this README comes out of `run_eval.py`.
+
+**Read hit@10, not MRR, for this system.** The top k chunks are passed to a model that reads all of them, so whether the fact is 3rd or 9th does not matter, only whether it is in there. MRR weights position 1 heavily, which is right for a search engine a person reads and wrong here. The two metrics disagree about hybrid and the per-question table settles it.
+
+**`HYBRID_WEIGHT = 0.2` is not validated.** Eight values swept against nine golden pairs is tuning on a test set too small to justify a decimal place. The direction holds across every setting (a little semantic helps, a lot destroys the exact-number questions); the specific value does not.
+
+**Pure embeddings are worse than pure TF-IDF here**, MRR 0.205 against 0.486. An exact figure like "$2.2 billion" is not a semantic concept, so it falls from rank 1 to 33. Hybrid exists because the two retrievers fail differently, not because embeddings are better.
+
+**TF-IDF first was deliberate, and it paid.** Every finding in this repo came from a lexical failure being inspectable: you can point at a term count and say why a chunk lost. A dense retriever would have papered over the provenance bug and the unfalsifiable metric, and neither would have been found.
+
+### Open problems
+
+**Period disambiguation.** "MAUs as of December 31, 2025" still returns Pinterest chunks from September quarters. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document. Fixing it needs the date parsed out of the question and used as a filter, which is a different kind of retrieval.
+
+**Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. Twenty would be better.
+
+**Answer correctness has never been measured end to end.** It needs a working `ANTHROPIC_API_KEY` and currently reports 0/9 because generation fails, not because generation is wrong.
