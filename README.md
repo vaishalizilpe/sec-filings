@@ -1,10 +1,13 @@
 # sec-filings
 
-A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying three separate times.
+A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying four separate times.
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
 **The retriever is ordinary. The harness is the point.**
+
+**[FINDINGS.md](FINDINGS.md)** is the full log, eleven findings in the order they happened, including six predictions recorded as wrong.
+**[METRICS.md](METRICS.md)** is the thirteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
 
