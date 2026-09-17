@@ -74,7 +74,7 @@ So: `grep` for truth, retrieval for the thing on trial.
 
 ```
 fetch_filings.py  ->  corpus/*.txt      16 filings, 6.1 MB
-build_index.py    ->  index.pkl         9,811 chunks, provenance headers, TF-IDF
+build_index.py    ->  index.pkl         9,465 chunks, TF-IDF with sublinear term frequency
 query.py          ->  answer            top-k retrieval, then generation
 run_eval.py       ->  eval_results.json file-level and fact-level hit@3, hit@10, MRR, per-question ranks
 ```
