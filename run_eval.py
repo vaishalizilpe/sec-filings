@@ -270,7 +270,7 @@ def run_eval():
     if corpus and os.path.getmtime("index.pkl") < max(os.path.getmtime(f) for f in corpus):
         print("\n  WARNING: index.pkl is older than the corpus. Re-run build_index.py.\n")
 
-    lexical = evaluate(index, eval_set, generate=False)
+    lexical = evaluate(index, eval_set)
     print("\n  LEXICAL ONLY (TF-IDF)")
     report(lexical)
 
@@ -286,7 +286,13 @@ def run_eval():
         report(hybrid)
 
         print(f"  RERANKED (hybrid, then a cross-encoder over the top {RERANK_CANDIDATES})")
-        reranked = evaluate(index, eval_set, generate=False, embeddings=emb,
+        # Reranking generates as well. The whole justification for reranking is
+        # that it moves the right passage into the top 3 so the model can see it.
+        # It took fact-level hit@3 from 4/9 to 6/9, meaning two more questions now
+        # have their answer in front of the model. Whether the model then answers
+        # them correctly is the central claim of this project, and it went
+        # unmeasured for as long as this call passed generate=False.
+        reranked = evaluate(index, eval_set, embeddings=emb,
                             model=model, use_rerank=True)
         report(reranked)
 
@@ -303,8 +309,15 @@ def run_eval():
         print()
         results = reranked
 
+    # Every config, not only the last one. This file previously held whichever
+    # config ran last, which was reranked, which did not generate, so the model's
+    # actual answers were written nowhere and could not be read back or labelled.
+    per_config = {"lexical": lexical}
+    if emb is not None:
+        per_config["hybrid"] = hybrid
+        per_config["reranked"] = reranked
     with open("eval_results.json", "w") as f:
-        json.dump(results, f, indent=2)
+        json.dump(per_config, f, indent=2)
 
     # results.json is committed and is the single source of truth for every
     # number published in a .md file. eval_results.json stays gitignored
