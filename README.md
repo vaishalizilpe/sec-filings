@@ -8,6 +8,34 @@ A retrieval pipeline over SEC filings, and an evaluation harness that caught its
 > The harness is the point, and it caught its own scoring lying eight times.
 > The first one reported **4/4 on a system that was really at 1/4**.
 
+**Retrieve wide and cheap, rerank narrow and expensive.** One query, 9,465 chunks in, 3 passages out:
+
+```
+                      9,465 chunks
+                            |
+   .------------------------+------------------------.
+   |  FIRST-STAGE RETRIEVAL          cheap: every     |
+   |                                 chunk is scored  |
+   |    sparse   TF-IDF, exact terms                  |
+   |    dense    bi-encoder, meaning                  |
+   |    hybrid   80 / 20                              |
+   '------------------------+------------------------'
+                            |  top-50 candidates
+   .------------------------+------------------------.
+   |  CROSS-ENCODER RERANKER         expensive: query |
+   |                                 and passage read |
+   |    re-scores the 50 as pairs    together, one    |
+   |                                 pair at a time   |
+   '------------------------+------------------------'
+                            |  top-3 context
+   .------------------------+------------------------.
+   |  GROUNDED GENERATION                             |
+   |    answer from the 3 passages, or refuse         |
+   '------------------------+------------------------'
+                            |
+                   answer, or a refusal
+```
+
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
 **[FINDINGS.md](FINDINGS.md)** is the full log, seventeen findings in the order they happened, including six predictions recorded as wrong.
@@ -99,18 +127,6 @@ So: `grep` for truth, retrieval for the thing on trial.
 
 ## How it works
 
-**Retrieve wide and cheap, rerank narrow and expensive.** One question moves left to right:
-
-```mermaid
-flowchart LR
-    Q["question"] --> TFIDF["TF-IDF<br/>keyword match"]
-    Q --> EMB["embeddings<br/>meaning match"]
-    TFIDF --> HY["hybrid<br/>80% lexical<br/>20% semantic"]
-    EMB --> HY
-    HY -->|"9,465 chunks<br/>scored, top 50 kept"| RR["cross-encoder<br/>reads question and<br/>passage together"]
-    RR -->|"top 3"| GEN["generation"]
-    GEN --> A["answer, or a refusal"]
-```
 
 The first stage scores all 9,465 chunks because each was turned into numbers once, in advance. The second stage reads the question and each passage together, which is far more accurate and far too slow to run on the whole corpus, so it only ever sees 50.
 
