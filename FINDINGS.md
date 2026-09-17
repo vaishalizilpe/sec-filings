@@ -625,8 +625,29 @@ The reranker reaches the "right file" **less** often and finds the actual answer
 
 ## Where it stands
 
-Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.
+```
+                   hit@3   hit@10    MRR
+lexical only         4/9      6/9   0.486
+hybrid (w=0.2)       4/9      8/9   0.465
++ reranking          6/9      8/9   0.576
+```
 
-**Next:** see finding 7. MAU fails because the question's date words are too common to help, and the headers I added made them more common. Fixing it means the system has to read the date out of the question, not just match words.
+Six changes shipped, two of them reverted after measurement. Nine golden pairs, five written to break things on purpose.
 
-See [METRICS.md](METRICS.md) for the six metric lessons on their own.
+**What is shipped:** XBRL stripping, the tab fix, sublinear TF, hybrid retrieval at 20% semantic weight, cross-encoder reranking over the top 50.
+
+**What was built and removed:** provenance headers (caused Pinterest queries to return Snap documents, finding 10), table-aware chunking (fixed 546 orphaned chunks, moved zero questions, finding 9).
+
+**What was tested and rejected:** header-aware chunking (impossible, SEC filings have no heading markup), line-aware chunking (worse at every size from 150 to 800), larger fixed chunks (nothing beats 800), pure embeddings (MRR 0.205 against 0.486).
+
+### The open problems
+
+**Period disambiguation.** `619`, the MAU question, is at rank 18 and has now defeated three retrievers. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document. Lexical, semantic and cross-encoder retrieval all fail the same way, because they are all ordering Pinterest MAU passages from different quarters and none of them knows which quarter was asked for. Fixing it means parsing the date out of the question and filtering, which is a different kind of retrieval.
+
+**Generation only sees the top 3.** `run_eval.py` passes `deep[:3]` to the model, so a fact at rank 5 is found by retrieval and never reaches generation. hit@10 of 8/9 describes something the user never experiences. Testing k=5 and k=10 is cheap and now worth it, since reranking made the top of the list trustworthy.
+
+**Answer correctness has never been measured on nine questions.** It reports 0/9 because the API key is invalid, not because generation is wrong. It was measured once at four questions (finding 2) and matched fact-level retrieval exactly.
+
+**Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. `HYBRID_WEIGHT = 0.2` and `RERANK_CANDIDATES = 50` are both unvalidated and both say so in the code.
+
+See [METRICS.md](METRICS.md) for the fourteen metric lessons on their own.
