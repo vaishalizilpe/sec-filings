@@ -9,12 +9,17 @@ Multi-company on purpose: "what was revenue last quarter" has sixteen defensible
 > **A note on every number below.** Until finding 13, the harness decided whether a
 > passage contained the answer with a plain substring test. `"619" in text` is true
 > inside `120,619` and `4,619`, and across the corpus that was 55 false matches out
-> of 141. A false match sitting higher in the ranking is taken as *the* rank, so the
-> bias runs one way and every figure measured before that fix read better than the
-> truth. The comparisons still hold, because both sides of each one carried the same
-> bias, but the individual decimals in findings 1 to 12 are not reliable and cannot
-> be re-derived, since the code has moved on. They are kept rather than deleted, for
-> the same reason the rest of this file keeps its mistakes.
+> of 141.
+>
+> An earlier version of this note claimed every figure below therefore read better
+> than the truth. **That claim was wrong**, and finding 13 now shows why: on the
+> current nine questions the broken matcher and the correct one produce identical
+> ranks, because no false match ever outranked a true one at these depths. The
+> defect was real; its effect on these aggregates was nil.
+>
+> The figures in findings 1 to 12 were measured on earlier eval sets and earlier
+> code and cannot be re-derived. They are kept rather than deleted, for the same
+> reason the rest of this file keeps its mistakes.
 
 ## Terms used here
 
@@ -633,7 +638,7 @@ The reranker reaches the "right file" **less** often and finds the actual answer
 
 ---
 
-## 13. The substring test was wrong, and it was in two places
+## 13. The substring test was broken, the fix was also broken, and the aggregate never moved
 
 `expected_answer in chunk["text"]` is how the harness decided whether a passage contained the answer. Six of the nine expected answers are short numbers, and `"619" in text` is true inside `120,619` and `4,619`.
 
@@ -651,30 +656,77 @@ expected        substring   bounded   false
                       141        86      55
 ```
 
-**Thirty-nine percent of the matches were wrong, and the bias runs one way.** A false match sitting higher in the ranking is taken as *the* rank, because the rank is the position of the first match. It can only make a number look better, never worse.
+**Thirty-nine percent of the matches were wrong.** That part is not in doubt, and it is reproducible.
 
-### It was not only the answer grader
+### It was in two places, not one
 
-The same test appeared twice. Once on the generated answer, and once computing `rank`, which is what fact-level hit@3, hit@10 and MRR are built from. So this was never a generation problem that happened to also affect scoring. It was in the number the project is named after.
+The same test graded the generated answer **and** computed `rank`, which is what fact-level hit@3, hit@10 and MRR are built from. So it was in the number this project is named after, not only in generation.
 
-The correction:
+### The first fix traded one error for another
+
+Reject a match if the character on either side is a digit, comma or period:
 
 ```
-                   published        measured
-hybrid hit@10          8/9             7/9
-hybrid MRR           0.465           0.462
-reranked MRR         0.576           0.571
+(?<![\d,.])  619  (?![\d,.])
 ```
 
-The headline survives: reranking still takes fact-level hit@3 from 4/9 to 6/9. One published figure was inflated by a whole question.
+That blocks `120,619` and `619.4`. It also blocks every correct answer that ends a sentence, because a sentence-final period is a period:
 
-### What the fix cannot do
+```
+"Pinterest's headcount was 5,265."
+                                ^  rejected. The answer was right.
+```
 
-Requiring a non-digit on both sides stops `120,619`. It does nothing about a correct number stated about the wrong company or the wrong period. `5,116` is Pinterest's headcount and also appears in Reddit's 10-Q. A model that retrieves the wrong filing and quotes that number still scores correct.
+The question I asked was "is the next character a period?" The question that matters is **"is this period part of the number?"** A comma or period only continues a number when a digit follows it:
 
-That needs a judge, not a rule, which is finding 17's problem.
+```
+(?!\d)(?![,.]\d)      619.4 rejected, 120,619 rejected, "5,265." accepted
+```
 
-**This is the third time a metric in this project has tested presence instead of correctness.** File-level hit@3 did it, the README audit did it, and now the grader. The pattern is always the same: the cheap check is a substring, and a substring cannot tell you what a number *is*.
+### And the aggregate never moved
+
+Running all three rules over the same nine questions:
+
+```
+expected       substring  over-strict  correct
+5,265                  5            5        5
+619                   16           16       16
+16%                    6            6        6
+474                    1            1        1
+2.2 billion            1            1        1
+12%                    2            2        2
+5,116                  7            7        7
+69%                    9           12        9   <- the only row that ever differed
+212,537                1            1        1
+
+substring      hit@3 4/9   hit@10 8/9   MRR 0.465
+over-strict    hit@3 4/9   hit@10 7/9   MRR 0.462
+correct        hit@3 4/9   hit@10 8/9   MRR 0.465
+```
+
+**The broken matcher and the correct one agree on every question.** Fifty-five false matches existed in the corpus and not one of them ever outranked a true match at these depths, so the published figures were right the whole time.
+
+The only rule that produced different numbers was the over-strict fix, and those numbers were published here as a correction. `hit@10` was reported as having been inflated from 8/9 to 7/9. It had not been inflated. That claim, and the figures that went with it, stood in the README, this file, METRICS.md and STEPS.md until they were reverted.
+
+### What actually catches this
+
+Not the aggregate, which looked plausible at every stage. Not the doc check, which only proves the documents agree with `results.json` and will happily enforce a wrong value across all of them, which is exactly what it did.
+
+It was reading one row:
+
+```
+expected : 5,265
+model    : "Pinterest's headcount was 5,265."
+marked   : wrong
+```
+
+**A metric cannot audit itself, and neither can the tooling built to keep it consistent.** Consistency machinery propagates whatever it is given. The only thing that caught this was a human looking at a single generated answer next to its grade.
+
+### What the fix still cannot do
+
+It does nothing about a correct number stated about the wrong company or the wrong period. `5,116` is Pinterest's headcount and also appears in Reddit's 10-Q. That needs a judge, not a rule.
+
+**This is the third time a metric here has tested presence instead of correctness**, and the second time a fix for one of them introduced a new one.
 
 ---
 
@@ -720,12 +772,12 @@ With generation on all three:
 
 ```
               fact-level hit@3     answer correctness
-lexical            4/9                   3/9
-hybrid             4/9                   3/9
+lexical            4/9                   4/9
+hybrid             4/9                   4/9
 reranked           6/9                   4/9
 ```
 
-Two more questions retrieved, one more answered. The aggregate is hiding four changes that nearly cancel:
+**Two more questions retrieved and not one more answered.** The aggregate is hiding four changes that exactly cancel:
 
 ```
 5,265         rank 5 -> 1     wrong -> right     working as intended
@@ -781,8 +833,8 @@ Repeated runs would characterise the run-to-run half of this and do nothing abou
 ```
                    hit@3   hit@10    MRR
 lexical only         4/9      6/9   0.486
-hybrid (w=0.2)       4/9      7/9   0.462
-+ reranking          6/9      8/9   0.571
+hybrid (w=0.2)       4/9      8/9   0.465
++ reranking          6/9      8/9   0.576
 ```
 
 Six changes shipped, two of them reverted after measurement. Nine golden pairs, five written to break things on purpose.

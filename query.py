@@ -27,16 +27,23 @@ def load_api_key():
     else runs, which cost two rounds of debugging a `generation skipped` that
     had nothing to do with the code.
     """
+    # A value has to be long enough to be a real key. A shell profile holding a
+    # six-character placeholder is truthy, wins over .env, and then every call
+    # fails with AuthenticationError while the harness reports "generation
+    # skipped". Checking that a value is present is not the same as checking it
+    # could be real, which is the mistake this whole repo is about.
     key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
+    if key and len(key.strip()) >= 40:
+        return key.strip()
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.exists(path):
         return None
     for line in open(path):
         line = line.strip()
         if line.startswith("ANTHROPIC_API_KEY="):
-            return line.split("=", 1)[1].strip().strip("\"'")
+            val = line.split("=", 1)[1].strip().strip("\"'")
+            if len(val) >= 40:
+                return val
     return None
 
 

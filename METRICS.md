@@ -197,7 +197,7 @@ Both measurements were honest. The first one aged out.
 
 ## 13. The right change can make your summary statistic worse
 
-Hybrid retrieval improved five of nine questions, left three unchanged, and made one worse by a single rank. MRR went **down**, 0.486 to 0.462.
+Hybrid retrieval improved five of nine questions, left three unchanged, and made one worse by a single rank. MRR went **down**, 0.486 to 0.465.
 
 ```
   5,116        27 ->  7   better
