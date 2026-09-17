@@ -50,7 +50,14 @@ def chunk_markdown(text, source, chunk_size=800, overlap=150):
 def build_index(root_dir):
     all_chunks = []
     md_files = glob.glob(os.path.join(root_dir, "**", "*.txt"), recursive=True)
-    print(f"Found {len(md_files)} markdown files under {root_dir}")
+    # A missing or empty corpus directory would otherwise build an empty index
+    # and report success. Every downstream number would then be computed over
+    # nothing, and nothing would say so.
+    assert md_files, (
+        f"No .txt files found under {root_dir!r}. "
+        f"Run fetch_filings.py first, or check the path."
+    )
+    print(f"Found {len(md_files)} files under {root_dir}")
 
     for path in md_files:
         try:
@@ -62,6 +69,7 @@ def build_index(root_dir):
         rel = os.path.relpath(path, root_dir)
         all_chunks.extend(chunk_markdown(text, rel))
 
+    assert all_chunks, f"Found {len(md_files)} files but produced 0 chunks."
     print(f"Built {len(all_chunks)} chunks")
 
     corpus = [c["text"] for c in all_chunks]

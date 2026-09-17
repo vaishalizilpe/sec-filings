@@ -69,7 +69,13 @@ def html_to_text(raw):
     # The ix:nonFraction and ix:nonNumeric tags are left alone on purpose. Those
     # wrap real displayed numbers, and the tag stripper below correctly keeps the
     # value inside them.
-    raw = re.sub(r"(?is)<ix:header.*?</ix:header>", " ", raw)
+    # If this pattern ever stops matching, the 456 junk chunks it removes come
+    # back silently and pollute every date-related search. Fail loudly instead.
+    raw, n_xbrl = re.subn(r"(?is)<ix:header.*?</ix:header>", " ", raw)
+    assert n_xbrl == 1, (
+        f"Expected exactly one <ix:header> block, found {n_xbrl}. "
+        f"SEC filing format may have changed. See FINDINGS.md finding 9."
+    )
     raw = re.sub(r"(?is)<(script|style).*?</\1>", " ", raw)
     raw = re.sub(r"(?i)</(p|div|tr|h[1-6]|li)>", "\n", raw)
     raw = re.sub(r"(?i)</t[dh]>", "\t", raw)
@@ -80,7 +86,15 @@ def html_to_text(raw):
     # preserve.
     text = re.sub(r"[ ]+", " ", text)
     text = re.sub(r"\n\s*\n+", "\n\n", text)
-    return text.strip()
+    text = text.strip()
+    # A real 10-K or 10-Q converts to hundreds of thousands of characters. A few
+    # thousand means the markup changed and the tag stripper is now discarding
+    # the document body.
+    assert len(text) > 50_000, (
+        f"Converted to only {len(text):,} characters. Expected 250,000 or more. "
+        f"The HTML structure has probably changed."
+    )
+    return text
 
 
 def recent_filings(cik, ua):

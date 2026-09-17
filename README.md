@@ -81,13 +81,15 @@ run_eval.py       ->  eval_results.json file-level and fact-level hit@3, hit@10,
 
 Four stages, each persisting to disk, so retrieval can be re-run without re-downloading and re-scored without re-indexing. The real reason they are separate is diagnostic: **each stage fails differently, and fused together you cannot tell which one broke.**
 
-Three design decisions worth calling out:
+Four design decisions worth calling out:
 
 **The HTML converter preserves block boundaries** before stripping tags. Closing `</p>`, `</tr>` and `</h1>` become newlines, `</td>` becomes a tab. Strip tags first and a financial table collapses into one line with every row boundary gone. You cannot chunk on structure a parser already destroyed.
 
-**Provenance headers are prepended after chunking, not before,** so chunk boundaries stay byte-identical across index versions and provenance is the only variable.
+**Every change is measured against byte-identical chunks.** When provenance headers existed they were prepended after chunking, never before, so chunk boundaries stayed the same across index versions and the change under test was the only variable. Same rule applies to anything added next.
 
 **Generation failure never takes down the retrieval measurement.** An invalid key returns a sentinel string rather than raising. The premise is that retrieval and generation fail independently, so the harness has to survive one without losing the other. It did not, until a 401 killed a run and exposed it.
+
+**Anything that can fail silently is asserted.** `glob`, `replace` and `re.sub` all do nothing quietly when they match nothing, which is how you get a run that reports success having computed over an empty corpus. The XBRL strip uses `re.subn` and asserts the match count is exactly 1, because `re.sub` cannot tell you it matched nothing. Read the assertion messages if one fires; each names the failure it is catching.
 
 ## Reproduce it
 

@@ -103,6 +103,19 @@ def run_eval():
     with open("eval_set.json", "r") as f:
         eval_set = json.load(f)
 
+    assert eval_set, "eval_set.json is empty. Nothing to measure."
+    required = {"question", "expected_answer", "expected_source_contains"}
+    for i, item in enumerate(eval_set):
+        missing = required - set(item)
+        assert not missing, f"Golden pair {i} is missing {sorted(missing)}"
+
+    # An index built from a different corpus than the one on disk would produce
+    # numbers that look fine and describe the wrong thing.
+    import os, glob as _glob
+    corpus = _glob.glob("corpus/*.txt")
+    if corpus and os.path.getmtime("index.pkl") < max(os.path.getmtime(f) for f in corpus):
+        print("\n  WARNING: index.pkl is older than the corpus. Re-run build_index.py.\n")
+
     results = evaluate(index, eval_set)
     report(results)
 
