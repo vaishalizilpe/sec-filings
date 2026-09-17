@@ -26,19 +26,33 @@ Usage:
 """
 import json
 import pickle
-from query import retrieve, answer
+import os
+from query import retrieve, retrieve_hybrid, answer, HYBRID_WEIGHT
 
 DEPTH = 200   # how far down to look when recording the rank of the right answer
 
 
-def evaluate(index, eval_set, generate=True):
+def load_embeddings():
+    """Optional. Returns (embeddings, model) or (None, None)."""
+    if not os.path.exists("embeddings.pkl"):
+        return None, None
+    with open("embeddings.pkl", "rb") as f:
+        emb = pickle.load(f)
+    from sentence_transformers import SentenceTransformer
+    return emb, SentenceTransformer(emb["model"])
+
+
+def evaluate(index, eval_set, generate=True, embeddings=None, model=None):
     results = []
     for item in eval_set:
         q = item["question"]
         expected_answer = item["expected_answer"]
         expected_source = item["expected_source_contains"]
 
-        deep = retrieve(q, index, k=DEPTH)
+        if embeddings is not None:
+            deep = retrieve_hybrid(q, index, embeddings, model, k=DEPTH)
+        else:
+            deep = retrieve(q, index, k=DEPTH)
 
         # Rank of the first chunk that actually contains the answer. None if it
         # never appears. This is the number that matters.
@@ -116,8 +130,27 @@ def run_eval():
     if corpus and os.path.getmtime("index.pkl") < max(os.path.getmtime(f) for f in corpus):
         print("\n  WARNING: index.pkl is older than the corpus. Re-run build_index.py.\n")
 
-    results = evaluate(index, eval_set)
-    report(results)
+    lexical = evaluate(index, eval_set, generate=False)
+    print("\n  LEXICAL ONLY (TF-IDF)")
+    report(lexical)
+
+    emb, model = load_embeddings()
+    if emb is None:
+        print("  No embeddings.pkl. Run build_embeddings.py to compare hybrid.\n")
+        results = lexical
+    else:
+        print(f"  HYBRID ({int((1-HYBRID_WEIGHT)*100)}% lexical / "
+              f"{int(HYBRID_WEIGHT*100)}% semantic)")
+        results = evaluate(index, eval_set, embeddings=emb, model=model)
+        report(results)
+
+        print("  per question, lexical -> hybrid:")
+        for a, b in zip(lexical, results):
+            ra = str(a["rank"]) if a["rank"] else f">{DEPTH}"
+            rb = str(b["rank"]) if b["rank"] else f">{DEPTH}"
+            mark = "" if ra == rb else ("   better" if b["rank"] and (not a["rank"] or b["rank"] < a["rank"]) else "   worse")
+            print(f"    {a['expected_answer']:<14} {ra:>5} -> {rb:>5}{mark}")
+        print()
 
     with open("eval_results.json", "w") as f:
         json.dump(results, f, indent=2)

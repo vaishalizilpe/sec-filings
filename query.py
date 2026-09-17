@@ -21,6 +21,39 @@ def retrieve(query, index, k=3):
     return [(index["chunks"][i], sims[i]) for i in top_idx]
 
 
+# How much the semantic score counts when the two are combined. 0 is pure
+# lexical, 1 is pure semantic.
+#
+# UNVALIDATED. This was picked by sweeping eight values against nine golden
+# pairs and taking a good one, which is tuning a parameter on a test set far too
+# small to justify a decimal place. See METRICS.md.
+#
+# What the sweep DID establish, because it holds across every setting tested: a
+# small semantic weight helps and a large one destroys the exact-number
+# questions. At w=1.0 Reddit's "$2.2 billion" falls from rank 1 to 33, because a
+# specific figure is not a semantic concept. Trust the direction, not the number.
+HYBRID_WEIGHT = 0.2
+
+
+def retrieve_hybrid(query, index, embeddings, model, k=3, w=HYBRID_WEIGHT):
+    """Combine word matching and meaning matching.
+
+    Both scores are cosine similarities on L2-normalised vectors, so they are
+    roughly on the same scale and can be added. Roughly: their distributions
+    differ, which is a known rough edge and probably why the best w is so low.
+    """
+    lex = cosine_similarity(index["vectorizer"].transform([query]),
+                            index["matrix"])[0]
+    sem = embeddings["vectors"] @ model.encode([query], normalize_embeddings=True)[0]
+    assert len(lex) == len(sem), (
+        f"lexical index has {len(lex)} chunks, embeddings have {len(sem)}. "
+        f"Rebuild embeddings.pkl after any change to index.pkl."
+    )
+    combined = (1 - w) * lex + w * sem
+    top = combined.argsort()[::-1][:k]
+    return [(index["chunks"][i], combined[i]) for i in top]
+
+
 def answer(query, retrieved_chunks):
     import os
     context = "\n\n---\n\n".join(c["text"] for c, score in retrieved_chunks)

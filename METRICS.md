@@ -192,3 +192,22 @@ Both measurements were honest. The first one aged out.
 **And one-at-a-time removals do not add up.** Removing sublinear TF alone changed nothing, so it looked useless. Removing both it and provenance scored 0.371, worse than changing nothing at all, while removing provenance and keeping sublinear TF scored 0.486. It was doing real work, hidden behind a bigger problem.
 
 **Ablate the current system, test combinations rather than single removals, and re-run it whenever the system or the test set changes.**
+
+---
+
+## 13. The right change can make your summary statistic worse
+
+Hybrid retrieval improved five of nine questions, left three unchanged, and made one worse by a single rank. MRR went **down**, 0.486 to 0.465.
+
+```
+  5,116        27 ->  7   better
+  69%          28 ->  9   better
+  5,265         9 ->  5   better
+  12%           1 ->  2   worse    <- this one costs more MRR than the rest gain
+```
+
+MRR is the mean of 1/rank, so it weights the top of the ranking heavily. Rank 1 to 2 costs 0.5. Rank 27 to 7 gains 0.11. One small slip at the top outweighs a twentyfold improvement further down.
+
+hit@10 told the opposite story, 6/9 to 8/9, from the same nine ranks.
+
+**Neither metric is wrong. Both are summaries, and a summary of nine numbers moving in different directions is not decidable.** Read the per-question table, decide, and then say which metric you are choosing and why.

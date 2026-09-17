@@ -478,6 +478,94 @@ XBRL stripping, the tab fix, sublinear TF, fixed 800-character chunking. Provena
 
 ---
 
+## 11. Hybrid retrieval, and why pure embeddings lose
+
+Finding 8 established that "how many people does Pinterest employ" cannot be reached by word matching. The filing says "headcount", the question says "employ", and the only shared word is "pinterest", the weakest term in the query.
+
+Three chunking strategies and two weighting changes had all failed on it:
+
+| Attempt | Result |
+|---|---|
+| Header-aware chunking | **Impossible.** SEC filings have zero `<h1>` to `<h4>` and zero `<b>` tags. A heading is indistinguishable from body text once markup is stripped |
+| Table-aware chunking | Fixed 546 orphaned chunks, **moved zero questions.** Eight of nine answers live in prose, not tables |
+| Line-aware chunking | **Worse at every size.** A 36-character fragment, "in part by an increase in headcount.", scored 0.63 and beat the real answer at 0.37 |
+| Larger fixed chunks | Swept 1600 to 4800. Nothing clearly better than 800, and `employ` got worse at every size |
+| Provenance headers | Helped this question and caused Pinterest queries to return Snap documents. Removed |
+
+Best result across all of it: rank 27.
+
+### Pure embeddings are worse, not better
+
+Same chunks, same questions, `all-MiniLM-L6-v2`, only the matching method changed:
+
+```
+question           tf-idf   embed
+headcount 5,265         9      45   worse
+MAU 619                22       9   better
+revenue 16%             7       2   better
+SNAP DAU 474            1       4   worse
+RDDT 2.2bn              1      33   worse
+MAU growth 12%          1       8   worse
+employ 5,116           27      17   better
+RDDT 69%               28       4   better
+SBC 212,537             1       2   worse
+
+tf-idf       hit@3 4/9   hit@10 6/9   MRR 0.486
+embeddings   hit@3 2/9   hit@10 6/9   MRR 0.205
+```
+
+**MRR less than half.** Every question TF-IDF had at rank 1 got worse. Reddit's "$2.2 billion" fell from 1 to 33, because **a specific figure is not a semantic concept**: embeddings match meaning, and an exact number carries almost none.
+
+And `employ`, the one question this was chosen to fix, went 27 to 17. Better, nowhere near solved.
+
+### The two retrievers fail differently, so combine them
+
+```python
+combined = (1 - w) * lexical + w * semantic
+```
+
+Sweeping `w`:
+
+```
+    w                   mix  hit@3  hit@10    MRR
+  0.0           pure tf-idf    4/9     6/9  0.486
+  0.1     90% lex / 10% sem    4/9     7/9  0.507
+  0.2     80% lex / 20% sem    4/9     8/9  0.465
+  0.3     70% lex / 30% sem    3/9     8/9  0.426
+  0.5     50% lex / 50% sem    3/9     5/9  0.283
+  1.0       pure embeddings    2/9     6/9  0.205
+```
+
+**Shipped at w=0.2**, per question:
+
+```
+  5,265         9 ->  5   better
+  619          22 -> 16   better
+  16%           7 ->  6   better
+  474           1 ->  1
+  2.2 billion   1 ->  1
+  12%           1 ->  2   worse
+  5,116        27 ->  7   better
+  69%          28 ->  9   better
+  212,537       1 ->  1
+```
+
+**Five better, one worse, three unchanged.** The three unchanged are the exact-number questions, which is the regression that did not happen. `employ` finally moved, 27 to 7. hit@10 goes 6/9 to 8/9.
+
+### MRR goes down, and that is the metric being wrong again
+
+MRR falls from 0.486 to 0.465 because `MAU growth` slipped from rank 1 to rank 2. **One question moving one place costs more MRR than another moving twenty places gains it**, since MRR weights the top of the ranking heavily.
+
+Five questions improved and the summary statistic went down. That is metric lesson 4 happening live: no aggregate can represent nine questions moving in different directions, and the per-question table is the evidence.
+
+### The weight is not validated, and the repo says so
+
+`HYBRID_WEIGHT = 0.2` was chosen by sweeping eight values against nine golden pairs and picking a good one. **That is tuning a parameter on a test set far too small to justify a decimal place**, and it is the same trap as raising k to 50.
+
+What the sweep does establish, because it holds across every setting: **a small semantic weight helps and a large one destroys the exact-number questions.** Trust the direction, not the number. The constant carries this warning in a comment in `query.py`.
+
+---
+
 ## Where it stands
 
 Two changes. The hardest case went from unreachable in 9,811 chunks to rank 7. **hit@3 has read 1/4 through all three measurements**, which is the clearest argument in this repo for not trusting a single number.

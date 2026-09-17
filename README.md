@@ -15,10 +15,13 @@ It scored a hit whenever any chunk from the expected *file* reached the top thre
 Current state, nine golden pairs, four of them written to break things on purpose:
 
 ```
-hit@3  4/9     hit@10  6/9     MRR  0.486
+lexical only    hit@3 4/9   hit@10 6/9   MRR 0.486
+hybrid (w=0.2)  hit@3 4/9   hit@10 8/9   MRR 0.465
 ```
 
 The system answers four of nine questions in its top three results. **The diagnosis is the work here, not the performance.**
+
+Hybrid improved five questions, left three unchanged and made one worse by a single rank, and **MRR went down anyway**, because rank 1 to 2 costs more MRR than rank 27 to 7 gains. The per-question table in finding 11 is the evidence; the aggregate is not.
 
 Two fixes in, on the original four questions, the hardest one moved from unreachable in 9,811 chunks to rank 7 while the headline metric never moved at all:
 
@@ -73,10 +76,11 @@ So: `grep` for truth, retrieval for the thing on trial.
 ## How it works
 
 ```
-fetch_filings.py  ->  corpus/*.txt      16 filings, 6.1 MB
-build_index.py    ->  index.pkl         9,465 chunks, TF-IDF with sublinear term frequency
-query.py          ->  answer            top-k retrieval, then generation
-run_eval.py       ->  eval_results.json file-level and fact-level hit@3, hit@10, MRR, per-question ranks
+fetch_filings.py    ->  corpus/*.txt       16 filings, 6.1 MB
+build_index.py      ->  index.pkl          9,465 chunks, TF-IDF with sublinear term frequency
+build_embeddings.py ->  embeddings.pkl     the same chunks as 384-dim vectors
+query.py            ->  answer             lexical, semantic or hybrid retrieval, then generation
+run_eval.py         ->  eval_results.json  both retrievers side by side, per-question ranks
 ```
 
 Four stages, each persisting to disk, so retrieval can be re-run without re-downloading and re-scored without re-indexing. The real reason they are separate is diagnostic: **each stage fails differently, and fused together you cannot tell which one broke.**
@@ -99,6 +103,7 @@ export SEC_USER_AGENT="Your Name your@email.com"   # EDGAR returns 403 without t
 export ANTHROPIC_API_KEY="..."                     # retrieval works without it, generation does not
 python3 fetch_filings.py
 python3 build_index.py corpus
+python3 build_embeddings.py     # optional. without it, run_eval reports lexical only
 python3 run_eval.py
 ```
 
@@ -108,6 +113,8 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
 - **Nine golden pairs, five of them written to break things on purpose.** `run_eval.py` reports fact-level hit@3, hit@10, MRR and the rank of the first correct chunk per question, alongside the old file-level number so the gap stays visible. Every figure in this README comes out of that script.
-- **The failure that is left is vocabulary mismatch, and no chunking or weighting change touches it.** "How many people does Pinterest employ" shares one word with the chunk that answers it, because the document says "headcount". Three chunking strategies and two weighting changes have all failed on it or made it worse. That is what embeddings are for, and it is the next step.
+- **`HYBRID_WEIGHT = 0.2` is not validated.** It was picked by sweeping eight values against nine golden pairs, which is tuning on a test set far too small to justify a decimal place. The direction holds across every setting (a little semantic helps, a lot destroys exact-number questions); the specific value does not.
+- **Pure embeddings are worse than pure TF-IDF here**, MRR 0.205 against 0.486. An exact figure like "$2.2 billion" is not a semantic concept, so it falls from rank 1 to 33. Hybrid exists because the two retrievers fail differently.
+- **Period disambiguation is still unsolved.** "MAUs as of December 31, 2025" returns Pinterest chunks from September quarters. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.
