@@ -121,6 +121,19 @@ The chunk sits physically inside Pinterest's 10-K. **Lexical retrieval sees 800 
 
 ## 5. Fix one: provenance headers
 
+> **Superseded by finding 10. The headers were removed on 2026-09-17.**
+>
+> Nothing measured below is wrong. Provenance headers really did take the
+> headcount question from unreachable to rank 33, and that number was correct at
+> the time. What did not survive was the conclusion, once two more features and
+> five more golden pairs existed.
+>
+> **A before-and-after in time is not an ablation.** This section measured one
+> change at one moment. Finding 10 measured the current system with and without
+> each feature, and reached the opposite verdict. Both were honest. Only one is
+> still true.
+
+
 Give every chunk its **provenance**, a line naming the company, filing type and period it came from:
 
 ```
@@ -401,6 +414,67 @@ source HTML:  <h1>: 0   <h2>: 0   <h3>: 0   <h4>: 0
 ```
 
 Header-aware chunking was inherited from the original plan, which was written for a corpus of **markdown files**, where `#` headings genuinely exist. It was carried forward for eleven days without anyone checking whether it applied here. It does not.
+
+---
+
+## 10. An ablation says two of the four features were not earning their place
+
+Four changes had accumulated: XBRL stripping, the tab fix, provenance headers, sublinear TF. Each was measured when it was added, none since.
+
+An **ablation** removes one piece at a time and measures what it was contributing. All 16 on/off combinations, the same nine golden pairs:
+
+```
+ xbrl  tab  prov  subTF   hit@3  hit@10    MRR
+ True True FALSE   True    4/9     6/9    0.486   <- best
+ True True  True   True    4/9     7/9    0.438   <- what was shipped
+ True True  True  FALSE    4/9     6/9    0.438
+FalseFalse  True  FALSE    4/9     5/9    0.432
+ ...
+ True True FALSE  FALSE    4/9     6/9    0.371   <- 9th of 16
+FalseFalse FALSE  FALSE    4/9     5/9    0.402
+```
+
+### Provenance headers were hurting
+
+Per question, with and without:
+
+```
+question            with  without
+headcount 5,265        7        9   worse
+MAU 619               27       22   better
+revenue 16%            3        7   worse
+Snap DAU 474           1        1
+Reddit 2.2bn           1        1
+MAU growth 12%         1        1
+employ 5,116          73       27   better
+Reddit 69%             6       28   worse
+SBC 212,537            4        1   better
+```
+
+**Three better, three worse.** MRR rises from 0.438 to 0.486 mostly because SBC goes 4 to 1 and employ goes 73 to 27, and movements near the top of the ranking dominate MRR. hit@10 actually drops, 7/9 to 6/9.
+
+So this is a genuine tradeoff, not a clean win, and the aggregate flatters it.
+
+**The reason to remove it anyway is not the score.** The headers diluted "pinterest" from 219 chunks (IDF 4.76) to 1,817 (IDF 2.65), and with the company name that weak, a Pinterest question started returning **Snap documents at the top of the results**. Wrong-company answers are the worst failure class for this use case, worse than a miss, because they look right.
+
+### Sublinear TF was masked, not useless
+
+Tested alone, sublinear TF changed nothing: MRR 0.438 either way. The obvious reading is that it does nothing and should also go.
+
+That reading is wrong, and the full sweep shows why:
+
+```
+ True True FALSE   True   0.486   drop provenance, keep sublinear TF
+ True True FALSE  FALSE   0.371   drop both
+```
+
+**Dropping both is the 9th best of 16 configurations, and worse than shipping everything unchanged.** Sublinear TF was doing real work the whole time. It looked useless only because provenance was hurting enough to hide it.
+
+**Features interact. You cannot test removals one at a time and add up the conclusions.** That is the same shape as finding 7, where two effects cancelled and looked like a small change.
+
+### What is left
+
+XBRL stripping, the tab fix, sublinear TF, fixed 800-character chunking. Provenance headers deleted, and `build_index.py` is 86 lines down from 110.
 
 ---
 

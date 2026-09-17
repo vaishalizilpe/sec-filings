@@ -10,9 +10,17 @@ The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Re
 
 The first retrieval metric reported **4/4**. The system was actually at **1/4**.
 
-It scored a hit whenever any chunk from the expected *file* reached the top three. Pinterest's 10-K is 540 chunks and every query says "Pinterest," so the test was close to unfalsifiable. Scoring on whether a retrieved passage actually **contains** the answer gave 1/4.
+It scored a hit whenever any chunk from the expected *file* reached the top three. Pinterest's 10-K is 540 chunks and every query contains the word "Pinterest," so the test was close to unfalsifiable. Scoring on whether a retrieved passage actually **contains** the answer gave 1/4.
 
-Two fixes later, the hardest question moved from unreachable in 9,811 chunks to rank 7, and **hit@3 still reads 1/4**:
+Current state, nine golden pairs, four of them written to break things on purpose:
+
+```
+hit@3  4/9     hit@10  6/9     MRR  0.486
+```
+
+The system answers four of nine questions in its top three results. **The diagnosis is the work here, not the performance.**
+
+Two fixes in, on the original four questions, the hardest one moved from unreachable in 9,811 chunks to rank 7 while the headline metric never moved at all:
 
 ```
               hit@3   hit@10    MRR
@@ -21,23 +29,20 @@ naive          1/4      2/4    0.301
 +sublinear TF  1/4      3/4    0.343
 ```
 
-| Question | naive | +prov | +subTF |
-|---|---|---|---|
-| Snap DAU 474 | 1 | 1 | 1 |
-| Pinterest revenue 16% | 6 | 4 | 6 |
-| Pinterest MAU 619 | 27 | 25 | 16 |
-| Pinterest headcount 5,265 | >200 | 33 | 7 |
+Three metrics, three different stories about the same two changes. A binary threshold could not see a thirtyfold improvement.
 
-Three metrics, three different stories about the same two changes.
+And one of those fixes turned out to be hurting. An **ablation**, testing all 16 on/off combinations of the four features, put the best configuration at **provenance headers off, sublinear TF on**:
 
-And the failure that is left was caused by one of the fixes. The provenance header stamps a date onto every chunk, which collapsed the IDF (inverse document frequency, a measure of how rare a word is across the corpus) of every date word:
+```
+ xbrl  tab  prov  subTF    MRR
+ True True FALSE   True   0.486   <- best, now shipped
+ True True  True   True   0.438   <- was shipped
+ True True FALSE  FALSE   0.371   <- dropping both: 9th of 16
+```
 
-| Word | Before headers | After headers |
-|---|---|---|
-| december | 1,118 chunks, IDF 3.17 | 3,549 chunks, IDF 2.02 |
-| 2025 | 2,549 chunks, IDF 2.35 | 6,270 chunks, IDF 1.45 |
+Provenance headers stamped company and period onto every chunk. That diluted "pinterest" from 219 chunks (IDF 4.76) to 1,817 (IDF 2.65), and a Pinterest query started returning **Snap documents**. They are removed. Finding 10 has the per-question tradeoff, which is three questions better and three worse.
 
-The header bought company disambiguation by spending period disambiguation. The MAU question needs the period. That is finding 7, and it is where pure lexical retrieval runs out.
+Sublinear TF looked useless when tested alone and was not. It was masked by provenance being worse. **Features interact, so one-at-a-time removals do not add up.**
 
 ## When not to use this
 
@@ -101,6 +106,6 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 
 - **The pipeline answers 1 of 4 questions.** The diagnosis is the work here, not the performance.
 - **Eight golden pairs now, four of them corner cases.** Fact-level scoring, MRR and per-question ranks are still computed outside `run_eval.py`. They were computed separately to produce the numbers above.
-- **MAU is the failure that is left, and no parameter will fix it.** The three period terms ("december", "31", "2025") have the lowest IDF in the query, and the provenance headers lowered them further. IDF is a property of the corpus, not a setting, so you cannot raise it by changing how you count. Fixing it needs query parsing plus metadata filtering, or hybrid search. Either way it stops being pure lexical retrieval.
+- **The failure that is left is vocabulary mismatch, and no chunking or weighting change touches it.** "How many people does Pinterest employ" shares one word with the chunk that answers it, because the document says "headcount". Three chunking strategies and two weighting changes have all failed on it or made it worse. That is what embeddings are for, and it is the next step.
 - Four golden pairs. Twelve is the target.
 - TF-IDF rather than embeddings, deliberately. A dense retriever would have partially papered over the provenance problem and it would never have been found.

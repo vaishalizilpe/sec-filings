@@ -178,3 +178,17 @@ Nobody checked what the chunks contained until question 8 failed at rank 84. The
 Both had been there since the first commit. Both were invisible in every metric, because a score tells you how well the system did on what it was given and never what it was given.
 
 **Print twenty random chunks before you trust any number computed over them.**
+
+---
+
+## 12. A before-and-after in time is not an ablation
+
+Every feature here was measured when it was added: build it, measure, keep it if the number moved. That is a **before-and-after in time**, and it is confounded, because the system keeps changing underneath.
+
+Provenance headers took the hardest question from unreachable to rank 33 when they were added. True at the time. Two features and five golden pairs later, an **ablation** (remove one piece from the current system and measure) said they were net negative and causing wrong-company results.
+
+Both measurements were honest. The first one aged out.
+
+**And one-at-a-time removals do not add up.** Removing sublinear TF alone changed nothing, so it looked useless. Removing both it and provenance scored 0.371, worse than changing nothing at all, while removing provenance and keeping sublinear TF scored 0.486. It was doing real work, hidden behind a bigger problem.
+
+**Ablate the current system, test combinations rather than single removals, and re-run it whenever the system or the test set changes.**
