@@ -42,11 +42,21 @@ def contains_answer(expected, text):
     a false match earlier in the ranking is taken as THE rank, so every metric
     computed from it read better than the truth.
 
-    Requiring a non-digit boundary on both sides fixes that. It does not fix
-    the harder cases, a right number asserted about the wrong company or the
-    wrong period, which needs a judge rather than a regex. See METRICS.md.
+    The boundary has to be written carefully. The first attempt excluded any
+    "," or "." on either side, which rejected every correct answer that ended a
+    sentence: `contains_answer("5,265", "headcount was 5,265.")` was False. It
+    had traded over-counting for under-counting.
+
+    A "," or "." only continues a number when a digit follows it. So 120,619
+    and 619.4 are still rejected, and "5,265." and "5,265, up from" are not.
+
+    It still cannot catch the harder cases, a right number asserted about the
+    wrong company or the wrong period, which needs a judge rather than a regex.
+    See METRICS.md.
     """
-    pattern = r"(?<![\d,.])" + re.escape(expected) + r"(?![\d,.])"
+    pattern = (r"(?<!\d)(?<![\d][,.])"
+               + re.escape(expected)
+               + r"(?!\d)(?![,.]\d)")
     return re.search(pattern, text, re.IGNORECASE) is not None
 
 

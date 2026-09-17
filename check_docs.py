@@ -77,10 +77,15 @@ def check_tables(truth):
     return fails
 
 
-# Figures that were published as current and were later proved wrong. These
-# must never reappear as a current claim. They are allowed inside the historical
-# sections of FINDINGS.md, which carry their own note about the broken matcher.
-RETIRED = {"0.465": "0.462", "0.576": "0.571"}
+# Figures published as current and later proved wrong. They must never reappear
+# as a current claim, and are allowed inside the historical sections of
+# FINDINGS.md, which carry their own note.
+#
+# Empty, and it is worth saying why. 0.465 and 0.576 were in here, on the belief
+# that the substring matcher had inflated them. It had not. The replacement rule
+# was over-strict and under-counted, and this dict was enforcing the wrong
+# numbers across every document. A guard is only as good as the value it guards.
+RETIRED = {}
 
 
 def check_retired(truth):

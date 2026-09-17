@@ -71,8 +71,8 @@ Nine golden pairs now, five of them written to break things on purpose. Same nin
 ```
                    hit@3   hit@10    MRR
 lexical only         4/9      6/9   0.486
-hybrid (w=0.2)       4/9      7/9   0.462
-+ reranking          6/9      8/9   0.571
+hybrid (w=0.2)       4/9      8/9   0.465
++ reranking          6/9      8/9   0.576
 ```
 
 **The system answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.
@@ -93,7 +93,7 @@ Eight times a number disagreed with reality. The full log is in [FINDINGS.md](FI
 
 **Two metrics moving in opposite directions.** Reranking made file-level worse (8/9 to 7/9) and fact-level better (4/9 to 6/9). It reaches the right *file* less often and finds the actual *answer* more often. Measuring file-level only, you would have discarded the largest single improvement in the project.
 
-**A test that matched the wrong numbers.** The harness asked `"619" in text`, which is true inside `120,619` and `4,619`. Across the corpus that was 55 false matches out of 141, and it was used both to grade answers and to compute rank. A published hit@10 of 8/9 was really 7/9.
+**A test that matched the wrong numbers, and a fix that matched too few.** The harness asked `"619" in text`, which is true inside `120,619` and `4,619`: 55 false matches out of 141, used both to grade answers and to compute rank. The fix then rejected every correct answer that ended a sentence, because a sentence-final period is a period. Both were wrong, the aggregate never moved, and the only thing that caught it was reading one row: expected `5,265`, model said `"headcount was 5,265."`, marked wrong.
 
 **A score that could never be anything but zero.** `answer correctness 0/9` printed under two of the three retrievers, because both passed `generate=False` and never called the model. The claim reranking exists to support had gone untested for the life of the project.
 
@@ -172,8 +172,8 @@ The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make th
 ```
                  hit@3   hit@10    MRR
 lexical only       4/9      6/9   0.486
-hybrid (w=0.2)     4/9      7/9   0.462
-+ reranking        6/9      8/9   0.571
+hybrid (w=0.2)     4/9      8/9   0.465
++ reranking        6/9      8/9   0.576
 ```
 
 **The pipeline answers six of nine questions in its top three results.** The diagnosis is the work here, not the performance.

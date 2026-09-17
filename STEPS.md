@@ -53,7 +53,9 @@ Every step of this project in one sentence each, in the order it happened.
 
 - Found the scorer used plain substring matching, so "619" counted as a hit inside "120,619" and "4,619", which was 55 false matches out of 141 across the corpus.
 - The bias only ran one way, because a false match higher up the list is taken as *the* rank, so every number computed from it read better than the truth.
-- Replaced it with a match that requires a non-digit on both sides, which corrected hybrid hit@10 from 8 of 9 down to the real 7 of 9.
+- Replaced it with a match requiring a non-digit boundary, and got that wrong too, because a number at the end of a sentence is followed by a period, so `"headcount was 5,265."` scored as a miss.
+- Fixed it properly by treating a comma or period as part of a number only when a digit follows it, which rejects 120,619 and 619.4 while accepting 5,265 at the end of a sentence.
+- Found on re-running that the original numbers had been right all along, because although the corpus held 55 false matches, none of them ever outranked a true one on these nine questions.
 - Noticed the eval set had no unanswerable questions, so a model that always guesses could never be caught.
 - Added three questions whose answers are genuinely absent, each one sitting next to something real: Snap's monthly users when Snap only reports daily, Pinterest revenue per user in Japan when Japan never appears, and a CEO's pay which lives in a different filing.
 - Reported refusals as their own score rather than mixing them into hit@3, because a question with no answer has no rank and folding it in would move the headline numbers for the wrong reason.
