@@ -38,7 +38,9 @@ def load_api_key():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
     if not os.path.exists(path):
         return None
-    for line in open(path):
+    with open(path) as fh:
+        lines = fh.readlines()
+    for line in lines:
         line = line.strip()
         if line.startswith("ANTHROPIC_API_KEY="):
             val = line.split("=", 1)[1].strip().strip("\"'")
