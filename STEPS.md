@@ -90,6 +90,18 @@ Every step of this project in one sentence each, in the order it happened.
 - Wrote the four-line parser by hand rather than adding a dependency to a repository that has three.
 - Kept `.env` out of git, committed a `.env.example` holding only the variable name, and checked that no key had ever reached any commit in this repository or the one the key was copied from.
 
+## The fix the harness rejected
+
+- Found the chunker slices on raw character count with no idea where words are, so 64% of chunks were cut mid-word and 824 word fragments like `abl`, `abo` and `acc` were sitting in the search index as if they were real terms.
+- One chunk ended `"global MAUs inc"`, and the model handed that chunk correctly reported that the figure was cut off.
+- Fixed it by snapping chunk edges to whitespace, which removed every mid-word cut and dropped 3,447 non-words from the vocabulary.
+- Retrieval then got clearly worse, with reranked hit@3 falling from 6 of 9 to 3 of 9.
+- Ruled out measurement drift by reverting and re-running, which reproduced the original numbers exactly.
+- Ruled out shrinking overlap, which barely moved, from a median of 150 characters to 143.
+- Ruled out boundary position by snapping the other direction, which recovered almost nothing.
+- Ruled out the obvious theory that un-splitting words makes them more common and less distinctive, because the rarity scores only moved in the third decimal place.
+- Did not ship it, and wrote it down as an open question with the numbers, because a change that makes the system measurably worse for reasons nobody can name does not belong in the code.
+
 ## Still open
 
 - No human labels exist for the generated answers yet, and every comparison between graders depends on having them. This is now possible, because the answers are finally being saved.

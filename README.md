@@ -38,7 +38,7 @@ A retrieval pipeline over SEC filings, and an evaluation harness that caught its
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
-**[FINDINGS.md](FINDINGS.md)** is the full log, seventeen findings in the order they happened, including six predictions recorded as wrong.
+**[FINDINGS.md](FINDINGS.md)** is the full log, eighteen findings in the order they happened, including six predictions recorded as wrong.
 **[METRICS.md](METRICS.md)** is the fifteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
@@ -203,4 +203,8 @@ It reaches the right *file* less often and finds the actual *answer* more often,
 
 **Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. Twenty would be better.
 
-**Answer correctness has never been measured end to end.** It needs a working `ANTHROPIC_API_KEY` and currently reports 0/9 because generation fails, not because generation is wrong.
+**Reranking improves retrieval and not answers.** It takes fact-level hit@3 from 4/9 to 6/9 and answer correctness stays at 4/9, because two questions are gained and two are lost. One of the losses had its rank *improve* to first. The model reads the top 3, not the top 1, so promoting the right passage reorders what sits beside it. [Finding 16](FINDINGS.md).
+
+**Generation is not reproducible.** Four runs of identical code gave refusal scores of 1/3, 2/3, 2/3 and 3/3. `temperature`, `top_p` and `top_k` are all deprecated on this model, so it cannot be removed. Generation figures are kept out of the results table for that reason. [Finding 17](FINDINGS.md).
+
+**Word-aware chunking is unresolved.** 64% of chunks are cut mid-word and 824 fragments sit in the vocabulary as search terms. Fixing that made retrieval clearly worse, in both snap directions, and the mechanism is unexplained. Overlap, boundary position and IDF were all ruled out. Not shipped. [Finding 18](FINDINGS.md).
