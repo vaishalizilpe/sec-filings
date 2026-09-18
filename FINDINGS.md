@@ -828,6 +828,104 @@ Repeated runs would characterise the run-to-run half of this and do nothing abou
 
 ---
 
+## 18. The chunker cuts words in half, fixing it made retrieval worse, and I cannot say why
+
+`chunk_markdown` slices on raw character count. It does not look at where words are.
+
+```
+chunks                     9,465
+starting mid-word          6,098   64%
+ending mid-word            6,010   63%
+```
+
+That is not cosmetic. A cut destroys one real term and invents two fragments, and TF-IDF indexes the fragments as if they were search terms:
+
+```
+1-3 letter tokens in the vocabulary: 824
+abl  abo  abr  acc  ach  acq  acr  acy  ada  ade  adj  adv  aff  agg ...
+```
+
+It also produces chunks like this one, which is what the model was handed when asked for Pinterest's MAUs:
+
+```
+PINS-10-K @211900, last characters:  "... global MAUs inc"
+```
+
+The model reported that the figure was cut off. It was right.
+
+### The fix
+
+Snap the end of a chunk backward to whitespace and the start of the next forward, so a word is never split. Bounded by a 40-character window so a long unbroken run is cut where it was going to be cut anyway.
+
+It does what it says:
+
+```
+                    before    after
+chunks               9,465    9,404
+start mid-word         64%       0%
+end mid-word           63%       0%
+vocabulary          11,423    7,976
+1-3 letter tokens      824      272
+```
+
+**3,447 terms left the vocabulary because they were never words.**
+
+### And retrieval got worse
+
+```
+                 shipped    snap-forward    snap-backward
+lexical  MRR       0.486         0.259           0.303
+hybrid   MRR       0.465         0.312           0.315
+rerank   MRR       0.576         0.357           0.387
+rerank hit@3         6/9           3/9             3/9
+```
+
+Per question, under reranking:
+
+```
+expected       shipped  snapped
+619                 18       11    better
+16%                  1        1
+474                  2        2
+2.2 billion          3        9    worse
+12%                  1        4    worse
+5,116                8       16    worse
+69%                  6        7
+212,537              1        1
+```
+
+### What was ruled out
+
+**Measurement drift.** The chunker was reverted, the index and embeddings rebuilt, and the eval re-run. `0.486 / 0.465 / 0.576` reproduced exactly. The comparison is sound.
+
+**Shrinking overlap.** Snapping could have eaten into the 150-character overlap. It did not: median 150 to 143, mean 150 to 142, two boundaries out of 9,388 below 100 characters.
+
+**Boundary position alone.** The start was snapped backward instead of forward, which keeps boundaries within 40 characters of the original and slightly increases overlap. It recovered almost nothing, 0.357 to 0.387 against 0.576. If this were only a question of where the boundaries landed, the two directions should differ from each other more than they both differ from the original. They do not.
+
+**IDF.** The obvious theory was that un-splitting words makes real terms more common and therefore less discriminating. The numbers say no:
+
+```
+term          IDF before   IDF after
+increased          3.571       3.579
+headcount          5.464       5.399
+monthly            5.799       5.706
+pinterest          4.762       4.731
+```
+
+Third decimal place. Not the mechanism.
+
+### Where that leaves it
+
+A fix that is correct in principle, measurably harmful in practice, and a mechanism I cannot name. Not shipped.
+
+**This is finding 5 and finding 10 arriving a third time.** Provenance headers were obviously right too: stamp every chunk with its company so a buried chunk knows what it belongs to. The ablation said they diluted `pinterest` from 219 chunks to 1,817 and sent Pinterest queries to Snap documents, and they were removed. Obviously correct is not a measurement.
+
+The honest caveat on this one runs the other way as well. **Nine questions cannot settle it.** Three regressed, one improved, and a change that moves every boundary in the corpus is close to resampling the test. The consistency across both snap directions argues for something systematic rather than luck, but consistency is not a mechanism.
+
+**The open question, stated so it can be closed later:** does word-aware chunking help, hurt, or neither, on an eval set large enough to tell? That needs more questions, not more runs, which is [metric lesson 15](METRICS.md).
+
+---
+
 ## Where it stands
 
 ```
