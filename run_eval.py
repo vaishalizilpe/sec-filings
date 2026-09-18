@@ -310,7 +310,9 @@ def run_eval():
             return str(r["rank"]) if r["rank"] else f">{DEPTH}"
 
         print(f"  {'answer':<14} {'lexical':>8} {'hybrid':>8} {'+rerank':>9}")
-        for a, b, c in zip(lexical, results, reranked):
+        # strict=True because a silent truncation here would line the wrong
+        # questions up against each other and print a table that looks fine.
+        for a, b, c in zip(lexical, results, reranked, strict=True):
             # Refusal cases have no rank; there is nothing to compare across
             # retrievers for a question with no answer in the corpus.
             if not a.get("answerable", True):

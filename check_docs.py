@@ -59,7 +59,9 @@ def check_tables(truth):
         r"^\s*(lexical only|hybrid \(w=0\.2\)|\+ reranking)\s+"
         r"(\d+)/(\d+)\s+(\d+)/(\d+)\s+([\d.]+)\s*$")
     for path in sorted(glob.glob("*.md")):
-        for i, line in enumerate(open(path), 1):
+        with open(path) as fh:
+            lines = list(enumerate(fh, 1))
+        for i, line in lines:
             m = pattern.match(line)
             if not m:
                 continue
@@ -88,7 +90,7 @@ def check_tables(truth):
 RETIRED = {}
 
 
-def check_retired(truth):
+def check_retired():
     """Fail if a retired figure is presented as a current result.
 
     A blanket "every 0.NNN must be in results.json" rule was tried and was
@@ -100,7 +102,9 @@ def check_retired(truth):
     for path in sorted(glob.glob("*.md")):
         if path == "FINDINGS.md":
             continue          # historical log, annotated rather than rewritten
-        for i, line in enumerate(open(path), 1):
+        with open(path) as fh:
+            lines = list(enumerate(fh, 1))
+        for i, line in lines:
             for found in re.findall(r"\b0\.\d{3}\b", line):
                 if found in RETIRED:
                     fails.append(
@@ -111,7 +115,7 @@ def check_retired(truth):
 
 def main():
     truth = load_truth()
-    fails = check_freshness(truth) + check_tables(truth) + check_retired(truth)
+    fails = check_freshness(truth) + check_tables(truth) + check_retired()
     if fails:
         print(f"\n  {len(fails)} inconsistency(ies) between the docs and results.json:\n")
         for f in fails:
