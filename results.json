@@ -1,5 +1,16 @@
 {
-  "source_fingerprint": "1b2b2444a20a045f",
+  "config": {
+    "n_filings": 16,
+    "corpus_bytes": 6186282,
+    "n_chunks": 9465,
+    "chunk_size": 800,
+    "chunk_overlap": 150,
+    "hybrid_weight": 0.2,
+    "rerank_candidates": 50,
+    "embedding_model": "all-MiniLM-L6-v2",
+    "embedding_dims": 384,
+    "rerank_model": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  },
   "lexical": {
     "n_answerable": 9,
     "n_refusal": 3,

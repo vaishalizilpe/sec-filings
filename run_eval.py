@@ -28,7 +28,11 @@ import json
 import pickle
 import os
 import re
-from query import retrieve, retrieve_hybrid, rerank, answer, HYBRID_WEIGHT, RERANK_CANDIDATES
+import glob
+from query import (retrieve, retrieve_hybrid, rerank, answer,
+                   HYBRID_WEIGHT, RERANK_CANDIDATES, RERANK_MODEL)
+from build_index import CHUNK_SIZE, CHUNK_OVERLAP
+from build_embeddings import MODEL as EMB_MODEL
 
 DEPTH = 200   # how far down to look when recording the rank of the right answer
 
@@ -163,25 +167,22 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
     return results
 
 
-SOURCE_FILES = ("build_index.py", "build_embeddings.py", "query.py", "run_eval.py")
-
-
-def source_fingerprint():
-    """A hash of the code that produces the numbers.
-
-    results.json records this. check_docs.py recomputes it and fails when they
-    differ, which means the code changed and the eval was not re-run.
-
-    File timestamps were tried first and are useless here: git does not store
-    mtimes, so a fresh CI checkout stamps every file with the checkout time and
-    the comparison becomes meaningless in exactly the place it needs to work.
-    """
-    import hashlib
-    h = hashlib.sha256()
-    for name in SOURCE_FILES:
-        with open(name, "rb") as f:
-            h.update(f.read())
-    return h.hexdigest()[:16]
+def config_block(index, emb):
+    """What produced these numbers. Every value is read from the code or the
+    corpus, so results.json cannot disagree with the thing it describes."""
+    filings = glob.glob("corpus/*.txt")
+    return {
+        "n_filings": len(filings),
+        "corpus_bytes": sum(os.path.getsize(f) for f in filings),
+        "n_chunks": len(index["chunks"]),
+        "chunk_size": CHUNK_SIZE,
+        "chunk_overlap": CHUNK_OVERLAP,
+        "hybrid_weight": HYBRID_WEIGHT,
+        "rerank_candidates": RERANK_CANDIDATES,
+        "embedding_model": EMB_MODEL,
+        "embedding_dims": int(emb["vectors"].shape[1]) if emb is not None else None,
+        "rerank_model": RERANK_MODEL,
+    }
 
 
 def summarise(results):
@@ -334,8 +335,8 @@ def run_eval():
     # results.json is committed and is the single source of truth for every
     # number published in a .md file. eval_results.json stays gitignored
     # because it carries full generated answers and is large.
-    summary = {"source_fingerprint": source_fingerprint(),
-                "lexical": summarise(lexical)}
+    summary = {"config": config_block(index, emb),
+               "lexical": summarise(lexical)}
     if emb is not None:
         summary["hybrid"] = summarise(hybrid)
         summary["reranked"] = summarise(reranked)

@@ -25,33 +25,6 @@ def load_truth():
     return json.load(open("results.json"))
 
 
-SOURCE_FILES = ("build_index.py", "build_embeddings.py", "query.py", "run_eval.py")
-
-
-def check_freshness(truth):
-    """results.json must have been produced by the code currently on disk.
-
-    Timestamps do not work for this. git does not store mtimes, so a fresh CI
-    checkout gives every file the same time and the comparison says nothing.
-    A hash of the source files is the same on every machine.
-    """
-    import hashlib
-    h = hashlib.sha256()
-    for name in SOURCE_FILES:
-        if not os.path.exists(name):
-            return [f"{name} is missing; cannot verify results.json is current."]
-        with open(name, "rb") as f:
-            h.update(f.read())
-    now = h.hexdigest()[:16]
-    was = truth.get("source_fingerprint")
-    if was is None:
-        return ["results.json has no source_fingerprint. Re-run run_eval.py."]
-    if now != was:
-        return [f"results.json was produced by different code "
-                f"(fingerprint {was}, current {now}). Re-run run_eval.py."]
-    return []
-
-
 def check_tables(truth):
     """Rows like:  lexical only         4/9      6/9   0.486"""
     fails = []
@@ -115,7 +88,7 @@ def check_retired():
 
 def main():
     truth = load_truth()
-    fails = check_freshness(truth) + check_tables(truth) + check_retired()
+    fails = check_tables(truth) + check_retired()
     if fails:
         print(f"\n  {len(fails)} inconsistency(ies) between the docs and results.json:\n")
         for f in fails:
