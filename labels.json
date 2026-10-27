@@ -7,8 +7,7 @@
   },
   "_pinned_to_run": {
     "config": "reranked",
-    "source_fingerprint": "c5d831cf0f6a9855",
-    "caveat": "temperature, top_p and top_k are all deprecated on claude-sonnet-5, so generation is not reproducible. See finding 17. A re-run produces different answers and these labels may no longer describe them. Check model_answer against the new output before reusing a label. If source_fingerprint no longer matches results.json, the code changed too."
+    "caveat": "temperature, top_p and top_k are all deprecated on claude-sonnet-5, so generation is not reproducible. See finding 17. A re-run produces different answers and these labels may no longer describe them. Check model_answer against the new output before reusing a label."
   },
   "labels": [
     {

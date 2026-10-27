@@ -97,6 +97,7 @@ def retrieve_hybrid(query, index, embeddings, model, k=3, w=HYBRID_WEIGHT):
 # Reranking reorders, it does not rescue. If an answer sits at rank 300 in the
 # cheap search, a window of 50 never sees it.
 RERANK_CANDIDATES = 50
+RERANK_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 _cross_encoder = None
 
@@ -106,7 +107,7 @@ def _load_cross_encoder():
     global _cross_encoder
     if _cross_encoder is None:
         from sentence_transformers import CrossEncoder
-        _cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        _cross_encoder = CrossEncoder(RERANK_MODEL)
     return _cross_encoder
 
 

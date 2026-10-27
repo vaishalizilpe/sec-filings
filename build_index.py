@@ -24,7 +24,11 @@ import glob
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 
-def chunk_filing(text, source, chunk_size=800, overlap=150):
+CHUNK_SIZE = 800
+CHUNK_OVERLAP = 150
+
+
+def chunk_filing(text, source, chunk_size=CHUNK_SIZE, overlap=CHUNK_OVERLAP):
     """Split a filing into overlapping chunks by character count.
 
     Named chunk_markdown until 2026-09-18, which was wrong in two ways: the
