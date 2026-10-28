@@ -172,8 +172,29 @@ if __name__ == "__main__":
     with open("index.pkl", "rb") as f:
         index = pickle.load(f)
 
-    retrieved = retrieve(query, index, k=3)
-    print(f"Query: {query}\n")
+    # Run what the README documents: hybrid retrieval, then the cross-encoder.
+    #
+    # Until 2026-10-27 this called retrieve() alone, so the CLI ran TF-IDF only
+    # while the README showed a three-stage pipeline. The eval's own numbers say
+    # that config is the weakest of the three. Anyone cloning the repo and trying
+    # the example command measured something the project does not ship, and the
+    # output never said which retriever produced it, so there was nothing to
+    # notice. Printing the config is half the fix.
+    if os.path.exists("embeddings.pkl"):
+        with open("embeddings.pkl", "rb") as f:
+            emb = pickle.load(f)
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer(emb["model"])
+        candidates = retrieve_hybrid(query, index, emb, model, k=RERANK_CANDIDATES)
+        retrieved = rerank(query, candidates, k=3)
+        config = (f"hybrid (w={HYBRID_WEIGHT}) -> cross-encoder over "
+                  f"top {RERANK_CANDIDATES} -> top 3")
+    else:
+        retrieved = retrieve(query, index, k=3)
+        config = "lexical only (embeddings.pkl not found; run build_embeddings.py)"
+
+    print(f"Query: {query}")
+    print(f"Config: {config}\n")
     print("Top retrieved chunks:")
     for chunk, score in retrieved:
         print(f"  [{score:.3f}] {chunk['source']} (offset {chunk['start']})")
