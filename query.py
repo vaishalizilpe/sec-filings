@@ -158,10 +158,24 @@ Answer:"""
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model="claude-sonnet-5",
-            max_tokens=300,
+            max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        # Take the first TEXT block, not block zero. This model returns a
+        # ThinkingBlock first, which has no .text, so content[0].text raised
+        # AttributeError and the harness reported "[Generation failed]" on
+        # every multi-hop question. Retrieval looked like the problem. It was
+        # not: the answer was in content[1] the whole time.
+        #
+        # max_tokens went 300 -> 2000 for the same reason. Thinking consumes
+        # the budget before the answer starts, and stop_reason came back as
+        # max_tokens with the answer truncated mid-sentence.
+        text = next((b.text for b in response.content
+                     if getattr(b, "type", None) == "text"), None)
+        if text is None:
+            return (f"[Generation returned no text block "
+                    f"(stop_reason={response.stop_reason}). Retrieval still measured.]")
+        return text
     except Exception as e:
         return f"[Generation failed: {type(e).__name__}. Retrieval still measured.]"
 

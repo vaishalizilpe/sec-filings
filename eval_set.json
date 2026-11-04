@@ -101,13 +101,13 @@
         "source_contains": "PINS-10-K-2025-12-31"
       },
       {
-        "fact": "revenue increased 17%",
+        "fact": "an increase of 22% compared to 2024",
         "source_contains": "META-10-K-2025-12-31"
       }
     ],
     "expected_answer": "Meta",
     "answerable": true,
-    "tests": "one percentage point apart. Both facts are phrased identically in their filings ('Revenue increased 16%' / 'revenue increased 17%'), so the two chunks compete for the same query terms rather than being distinguished by them."
+    "tests": "Six percentage points apart, Meta 22% against Pinterest 16%. Recorded here because the first version of this question used 'revenue increased 17%' as Meta's fact. That string is in the filing and means something else: the sequential change between Q3 and Q4 2025, not annual growth. The string existed and was never checked for what it referred to, which is the mistake this whole repo is about."
   },
   {
     "question": "Of Pinterest, Snap, Reddit and Meta, which reported the lowest revenue for 2025?",

@@ -68,6 +68,17 @@ REFUSAL_MARKERS = (
     "does not contain", "doesn't contain", "does not disclose", "doesn't disclose",
     "not disclosed", "cannot find", "can't find", "no information", "not provided",
     "not available", "not stated", "unable to", "does not appear", "not in the",
+    # Added 2026-11-03. A four-company comparison was declined with "I cannot
+    # definitively determine which of the four companies had the lowest
+    # full-year 2025 revenue overall" and scored CORRECT, because the expected
+    # answer "Reddit" appeared elsewhere in the same paragraph. None of the
+    # markers above match that sentence. A refusal the list does not recognise
+    # is counted as an answer, so the list is a floor on refusals and a ceiling
+    # on false correctness, and both move when a model phrases a decline a way
+    # nobody wrote down.
+    "cannot definitively", "can't definitively", "cannot determine",
+    "cannot make a complete", "do not have enough", "don't have enough",
+    "insufficient information", "cannot answer",
 )
 
 
@@ -165,7 +176,17 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
             expected_source in c["source"] for c, _ in top3)
 
         gen_answer = answer(q, top3) if generate else "[generation skipped]"
-        correct = contains_answer(expected_answer, gen_answer) if answerable else None
+        # A refusal is never correct, whatever substrings it contains.
+        #
+        # contains_answer is a substring test with numeric boundaries. It was
+        # built for answers like "5,265". Multi-hop answers are words:
+        # "Pinterest", "Meta", "Reddit". The model refused a question with
+        # "The context does not contain information about the number of
+        # employees at Pinterest or Snap", and that scored CORRECT, because
+        # the expected answer appeared inside the sentence saying it could not
+        # be found. Finding 1 in the generation metric.
+        correct = (contains_answer(expected_answer, gen_answer)
+                   and not refused(gen_answer)) if answerable else None
         did_refuse = (not answerable and generation_ran(gen_answer)
                       and refused(gen_answer))
 
