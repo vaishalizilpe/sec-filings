@@ -76,5 +76,93 @@
     "question": "What was the CEO's total compensation at Reddit in 2025?",
     "answerable": false,
     "tests": "Refusal. The CEO is named throughout the 10-K but compensation is disclosed in the proxy statement, not here. Tests a plausible question about a real person with no answer in scope."
+  },
+  {
+    "question": "Which company had more employees at the end of 2025, Pinterest or Snap?",
+    "hops": [
+      {
+        "fact": "5,265",
+        "source_contains": "PINS-10-K-2025-12-31"
+      },
+      {
+        "fact": "5,261",
+        "source_contains": "SNAP-10-K-2025-12-31"
+      }
+    ],
+    "expected_answer": "Pinterest",
+    "answerable": true,
+    "tests": "the baseline multi-hop case, measured in finding 19. Four people apart, so neither filing alone settles it. The Pinterest fact sits at hybrid rank 83 and the Snap fact beyond 200, while only the top 50 reach the reranker."
+  },
+  {
+    "question": "Which grew revenue faster in 2025, Pinterest or Meta?",
+    "hops": [
+      {
+        "fact": "Revenue increased 16%",
+        "source_contains": "PINS-10-K-2025-12-31"
+      },
+      {
+        "fact": "revenue increased 17%",
+        "source_contains": "META-10-K-2025-12-31"
+      }
+    ],
+    "expected_answer": "Meta",
+    "answerable": true,
+    "tests": "one percentage point apart. Both facts are phrased identically in their filings ('Revenue increased 16%' / 'revenue increased 17%'), so the two chunks compete for the same query terms rather than being distinguished by them."
+  },
+  {
+    "question": "Of Pinterest, Snap, Reddit and Meta, which reported the lowest revenue for 2025?",
+    "hops": [
+      {
+        "fact": "4,221.8",
+        "source_contains": "PINS-10-K-2025-12-31"
+      },
+      {
+        "fact": "5.9 billion",
+        "source_contains": "SNAP-10-K-2025-12-31"
+      },
+      {
+        "fact": "2,202,506",
+        "source_contains": "RDDT-10-K-2025-12-31"
+      },
+      {
+        "fact": "200,966",
+        "source_contains": "META-10-K-2025-12-31"
+      }
+    ],
+    "expected_answer": "Reddit",
+    "answerable": true,
+    "tests": "four hops into a three-passage budget. Structurally impossible for a single retrieval regardless of ranking quality, which is the point. Also mixes units: thousands, millions and billions across the four filings."
+  },
+  {
+    "question": "Which was larger at the end of 2025: Snap's Q4 daily active users or Pinterest's monthly active users?",
+    "hops": [
+      {
+        "fact": "474 million",
+        "source_contains": "SNAP-10-K-2025-12-31"
+      },
+      {
+        "fact": "619",
+        "source_contains": "PINS-10-K-2025-12-31"
+      }
+    ],
+    "expected_answer": "Pinterest",
+    "answerable": true,
+    "tests": "compares two different metrics, DAU against MAU, so the query carries both terms and matches neither cleanly. The 619 fact is already known to be hard: it is at rank 18 single-hop and has defeated three retrievers (finding 5)."
+  },
+  {
+    "question": "Did Pinterest's revenue growth rate accelerate from full-year 2025 to the second quarter of 2026?",
+    "hops": [
+      {
+        "fact": "Revenue increased 16%",
+        "source_contains": "PINS-10-K-2025-12-31"
+      },
+      {
+        "fact": "Revenue increased 18%",
+        "source_contains": "PINS-10-Q-2026-06-30"
+      }
+    ],
+    "expected_answer": "Yes",
+    "answerable": true,
+    "tests": "two hops inside one company, so company disambiguation cannot help. This isolates period disambiguation, the open problem from finding 5, as the only thing separating the two chunks."
   }
 ]
