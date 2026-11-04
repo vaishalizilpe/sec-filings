@@ -926,6 +926,91 @@ The honest caveat on this one runs the other way as well. **Nine questions canno
 
 ---
 
+## 19. The CLI ran a retriever the README does not describe, and finding that out answered a different question
+
+Two things here. The first is a documentation bug. The second is what the bug was hiding.
+
+### The CLI was not the system
+
+`query.py` is the entry point in the README. Its usage line is the first command anyone runs after cloning. Until 2026-10-27 its `__main__` block called `retrieve()`, which is TF-IDF alone. No embeddings, no reranking.
+
+The README, four lines above that usage line, shows a three-stage pipeline ending in a cross-encoder.
+
+So the documented system and the runnable system were different, and by this project's own numbers the runnable one was the weakest of the three:
+
+```
+                   hit@3    MRR
+lexical only         4/9   0.486     <- what the CLI ran
+hybrid (w=0.2)       4/9   0.465
++ reranking          6/9   0.576     <- what the README describes
+```
+
+Nothing failed. The CLI printed three chunks and a score for each, and the output never said which retriever produced them. There was nothing to notice.
+
+**The fix is two parts and the second one matters more.** Wire the CLI to hybrid plus reranking, and print the configuration above the results:
+
+```
+Config: hybrid (w=0.2) -> cross-encoder over top 50 -> top 3
+```
+
+An output that does not name what produced it cannot be checked. That is the same shape as finding 1, where a metric reported 4/4 without saying what it was counting.
+
+### What the bug was hiding
+
+The CLI was being used to test whether a comparison question works. Comparison questions need two facts from two different filings:
+
+```
+Which company had more employees at the end of 2025, Pinterest or Snap?
+
+  "Headcount was 5,265 ."          PINS-10-K-2025-12-31 @ 210600
+  "had 5,261 full-time employees"  SNAP-10-K-2025-12-31 @ 44850
+```
+
+Four people apart. The answer cannot be guessed from either filing alone.
+
+With the full pipeline wired up, both questions return three passages and the scores are not close:
+
+```
+                                        best cross-encoder score
+What was Pinterest's headcount ...?                      +4.647
+Which company had more employees ...?                    -0.813
+```
+
+The cross-encoder outputs a raw confidence, not a similarity, and it can go negative. Negative means the model read the question and the passage together and reported that this passage does not answer it.
+
+**It is right.** None of the three returned chunks contains either employee count. Checked directly against the index.
+
+### The reranker never had a chance
+
+The obvious reading is that reranking failed. It did not. It never saw the answers.
+
+```
+rank of each fact among the 200 hybrid candidates
+
+question asked                                   5,265    5,261
+combined comparison                                 83     >200
+"What was Pinterest's headcount ...?"                5     >200
+"How many full-time employees did Snap have ...?" >200      136
+```
+
+The reranker only re-scores the top 50. At rank 83 and beyond 200, neither fact entered the window. Reranking reorders what it is given, and it was given fifty passages that do not contain the answer.
+
+**Splitting the question moves the Pinterest fact from rank 83 to rank 5.** Same corpus, same retriever, same fact. The only thing that changed is that the query stopped asking for two things at once.
+
+That is the mechanism. A comparison question carries terms from both subjects, and the scoring blends them into a query that matches neither filing well. It is not a budget problem. Six passages instead of three would not help, because the answers are at 83 and beyond 200.
+
+### The part that is not about multi-hop
+
+Snap's employee count sits at rank 136 even when asked for on its own, in a question with no second subject. Splitting is not sufficient for it. That is a separate retrieval failure sharing none of this finding's explanation, and it is unexplained.
+
+### What this says about the loop
+
+The negative score is the useful artifact. The system already distinguishes "I found it" from "nothing here answers this," and it does so with a number, before generation runs.
+
+That is a condition something could act on: a best candidate below zero means search again with different terms rather than answer from what is in hand. Which is the loop, arrived at from measurement rather than from deciding to build one.
+
+---
+
 ## Where it stands
 
 ```
