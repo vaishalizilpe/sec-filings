@@ -68,6 +68,17 @@ REFUSAL_MARKERS = (
     "does not contain", "doesn't contain", "does not disclose", "doesn't disclose",
     "not disclosed", "cannot find", "can't find", "no information", "not provided",
     "not available", "not stated", "unable to", "does not appear", "not in the",
+    # Added 2026-11-03. A four-company comparison was declined with "I cannot
+    # definitively determine which of the four companies had the lowest
+    # full-year 2025 revenue overall" and scored CORRECT, because the expected
+    # answer "Reddit" appeared elsewhere in the same paragraph. None of the
+    # markers above match that sentence. A refusal the list does not recognise
+    # is counted as an answer, so the list is a floor on refusals and a ceiling
+    # on false correctness, and both move when a model phrases a decline a way
+    # nobody wrote down.
+    "cannot definitively", "can't definitively", "cannot determine",
+    "cannot make a complete", "do not have enough", "don't have enough",
+    "insufficient information", "cannot answer",
 )
 
 
@@ -132,7 +143,7 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
         # Unanswerable questions have no rank and no expected source. Retrieval
         # still runs and the model is still handed the top 3, because refusing
         # while holding plausible-looking context is the behaviour under test.
-        if answerable:
+        if answerable and not item.get("hops"):
             rank = next(
                 (i + 1 for i, (c, _) in enumerate(deep)
                  if contains_answer(expected_answer, c["text"])),
@@ -141,13 +152,41 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
         else:
             rank = None
 
+        # Multi-hop. A question with `hops` needs several facts from several
+        # filings, so one rank cannot describe it. Each hop gets its own rank
+        # and the question is scored all-or-nothing: every hop inside the
+        # window, or it does not count.
+        #
+        # All-or-nothing on purpose. The question being asked is whether a
+        # single retrieval call can serve a question that needs two lookups,
+        # and "it found one of the two numbers" is a failure at answering it.
+        # Partial credit would turn a clean no into an encouraging fraction.
+        hop_ranks = []
+        for hop in item.get("hops", []):
+            hop_ranks.append(next(
+                (i + 1 for i, (c, _) in enumerate(deep)
+                 if hop["source_contains"] in c["source"]
+                 and contains_answer(hop["fact"], c["text"])),
+                None,
+            ))
+
         # The old, nearly unfalsifiable metric, kept for contrast.
         top3 = deep[:3]
         file_hit = bool(expected_source) and any(
             expected_source in c["source"] for c, _ in top3)
 
         gen_answer = answer(q, top3) if generate else "[generation skipped]"
-        correct = contains_answer(expected_answer, gen_answer) if answerable else None
+        # A refusal is never correct, whatever substrings it contains.
+        #
+        # contains_answer is a substring test with numeric boundaries. It was
+        # built for answers like "5,265". Multi-hop answers are words:
+        # "Pinterest", "Meta", "Reddit". The model refused a question with
+        # "The context does not contain information about the number of
+        # employees at Pinterest or Snap", and that scored CORRECT, because
+        # the expected answer appeared inside the sentence saying it could not
+        # be found. Finding 1 in the generation metric.
+        correct = (contains_answer(expected_answer, gen_answer)
+                   and not refused(gen_answer)) if answerable else None
         did_refuse = (not answerable and generation_ran(gen_answer)
                       and refused(gen_answer))
 
@@ -160,6 +199,10 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
             "fact_hit_3": bool(rank and rank <= 3),
             "fact_hit_10": bool(rank and rank <= 10),
             "file_hit_3": file_hit,
+            "hops": item.get("hops"),
+            "hop_ranks": hop_ranks,
+            "multihop_hit_3": bool(hop_ranks) and all(r and r <= 3 for r in hop_ranks),
+            "multihop_hit_10": bool(hop_ranks) and all(r and r <= 10 for r in hop_ranks),
             "answer_correct": correct,
             "generated_answer": gen_answer,
             "sources_retrieved": [c["source"] for c, _ in top3],
@@ -192,10 +235,16 @@ def summarise(results):
     enforces that. Six figures went stale across three documents from a single
     code change before this existed.
     """
-    ans = [r for r in results if r.get("answerable", True)]
-    ref = [r for r in results if not r.get("answerable", True)]
+    # Multi-hop questions are held out of every figure below. They are a
+    # different question type measured a different way, and folding five
+    # questions nothing can currently answer into the headline numbers would
+    # drag them down and make the before-and-after unreadable.
+    multi = [r for r in results if r.get("hops")]
+    single = [r for r in results if not r.get("hops")]
+    ans = [r for r in single if r.get("answerable", True)]
+    ref = [r for r in single if not r.get("answerable", True)]
     n = len(ans)
-    return {
+    out = {
         "n_answerable": n,
         "n_refusal": len(ref),
         "file_hit_3": sum(r["file_hit_3"] for r in ans),
@@ -206,6 +255,16 @@ def summarise(results):
         "refusals_correct": sum(r["refused"] for r in ref),
         "generation_ran": any(generation_ran(r["generated_answer"]) for r in results),
     }
+    if multi:
+        out["multihop"] = {
+            "n_questions": len(multi),
+            "n_hops_total": sum(len(r["hops"]) for r in multi),
+            "n_hops_found_3": sum(1 for r in multi for rk in r["hop_ranks"] if rk and rk <= 3),
+            "hit_3": sum(r["multihop_hit_3"] for r in multi),
+            "hit_10": sum(r["multihop_hit_10"] for r in multi),
+            "answer_correct": sum(bool(r["answer_correct"]) for r in multi),
+        }
+    return out
 
 
 def report(results):
@@ -213,8 +272,10 @@ def report(results):
     # MRR are undefined for a question with no answer in the corpus, and folding
     # refusals into the same denominator would move the headline numbers for a
     # reason that has nothing to do with retrieval.
-    ans = [r for r in results if r.get("answerable", True)]
-    ref = [r for r in results if not r.get("answerable", True)]
+    multi = [r for r in results if r.get("hops")]
+    single = [r for r in results if not r.get("hops")]
+    ans = [r for r in single if r.get("answerable", True)]
+    ref = [r for r in single if not r.get("answerable", True)]
 
     n = len(ans)
     file3 = sum(r["file_hit_3"] for r in ans)
@@ -240,10 +301,22 @@ def report(results):
         print(f"  NOTE: file-level is {file3}/{n} and fact-level is {fact3}/{n}.")
         print("  The gap is the point. See FINDINGS.md finding 1.\n")
 
+    if multi:
+        hops_total = sum(len(r["hops"]) for r in multi)
+        hops_found = sum(1 for r in multi for rk in r["hop_ranks"] if rk and rk <= 3)
+        print(f"  MULTI-HOP, scored all-or-nothing, held out of the numbers above")
+        print(f"    questions answered  {sum(r['multihop_hit_3'] for r in multi)}/{len(multi)}"
+              f"   every required fact in the top 3")
+        print(f"    facts reached       {hops_found}/{hops_total}   individual hops in the top 3")
+        for r in multi:
+            ranks = ", ".join(str(rk) if rk else ">%d" % DEPTH for rk in r["hop_ranks"])
+            print(f"    [{ranks:>14}]  {r['question'][:50]}")
+        print()
+
     # Per-question ranks, because no aggregate can show that one question
     # improved thirtyfold while another round-tripped. See METRICS.md lesson 4.
     print(f"  {'rank':>6}  {'answer':<14} question")
-    for r in results:
+    for r in single:
         if not r.get("answerable", True):
             if not generation_ran(r["generated_answer"]):
                 mark = "no output"
