@@ -185,8 +185,28 @@ def evaluate(index, eval_set, generate=True, embeddings=None, model=None,
         # employees at Pinterest or Snap", and that scored CORRECT, because
         # the expected answer appeared inside the sentence saying it could not
         # be found. Finding 1 in the generation metric.
-        correct = (contains_answer(expected_answer, gen_answer)
-                   and not refused(gen_answer)) if answerable else None
+        # Multi-hop answers are categorical: "Pinterest", "Meta", "Reddit", "Yes".
+        # contains_answer is a substring test. In a comparison question BOTH
+        # candidate names appear in any reasoned answer, whichever one the model
+        # picks, so the test cannot tell "Meta won" from "Pinterest won".
+        #
+        # Measured, not assumed. The model answered "Pinterest grew revenue
+        # faster in 2025, with a 69% increase compared to Meta's 22% increase"
+        # to a question whose answer is Meta, and it scored CORRECT because the
+        # string "Meta" is in the sentence. A separate run refused outright and
+        # also scored correct, because "Reddit" was inside the refusal.
+        #
+        # Two string heuristics have now failed on this, and adding a third is
+        # how finding 1 happened. So the honest value is None: not zero, which
+        # would claim the model got them all wrong, but unmeasurable. The judge
+        # is what measures it.
+        if not answerable:
+            correct = None
+        elif item.get("hops"):
+            correct = None
+        else:
+            correct = (contains_answer(expected_answer, gen_answer)
+                       and not refused(gen_answer))
         did_refuse = (not answerable and generation_ran(gen_answer)
                       and refused(gen_answer))
 
@@ -262,7 +282,11 @@ def summarise(results):
             "n_hops_found_3": sum(1 for r in multi for rk in r["hop_ranks"] if rk and rk <= 3),
             "hit_3": sum(r["multihop_hit_3"] for r in multi),
             "hit_10": sum(r["multihop_hit_10"] for r in multi),
-            "answer_correct": sum(bool(r["answer_correct"]) for r in multi),
+            "answer_correct": None,
+            "answer_correct_note": (
+                "not measurable. Multi-hop answers are categorical and "
+                "contains_answer is a substring test; both candidates appear "
+                "in any reasoned comparison. Needs the judge."),
         }
     return out
 
@@ -308,6 +332,7 @@ def report(results):
         print(f"    questions answered  {sum(r['multihop_hit_3'] for r in multi)}/{len(multi)}"
               f"   every required fact in the top 3")
         print(f"    facts reached       {hops_found}/{hops_total}   individual hops in the top 3")
+        print(f"    answer correctness  not measurable   substring matching cannot grade a comparison")
         for r in multi:
             ranks = ", ".join(str(rk) if rk else ">%d" % DEPTH for rk in r["hop_ranks"])
             print(f"    [{ranks:>14}]  {r['question'][:50]}")
@@ -338,7 +363,20 @@ def run_eval():
     assert eval_set, "eval_set.json is empty. Nothing to measure."
     for i, item in enumerate(eval_set):
         assert "question" in item, f"Golden pair {i} is missing ['question']"
-        if item.get("answerable", True):
+        if item.get("answerable", True) and item.get("hops"):
+            # Multi-hop carries `hops` instead of a single expected_source_contains,
+            # because a comparison question has several correct source files and
+            # one field cannot name them. expected_answer is still required: it is
+            # what the generated text must say, which is a separate thing from what
+            # retrieval must find.
+            assert "expected_answer" in item, f"Multi-hop pair {i} is missing ['expected_answer']"
+            assert "expected_source_contains" not in item, (
+                f"Multi-hop pair {i} carries both hops and expected_source_contains. "
+                "Pick one; the singular field would be silently ignored.")
+            for j, hop in enumerate(item["hops"]):
+                gaps = {"fact", "source_contains"} - set(hop)
+                assert not gaps, f"Pair {i} hop {j} is missing {sorted(gaps)}"
+        elif item.get("answerable", True):
             missing = {"expected_answer", "expected_source_contains"} - set(item)
             assert not missing, f"Answerable pair {i} is missing {sorted(missing)}"
         else:
@@ -390,6 +428,12 @@ def run_eval():
             # Refusal cases have no rank; there is nothing to compare across
             # retrievers for a question with no answer in the corpus.
             if not a.get("answerable", True):
+                continue
+            # Multi-hop has no single rank, so col() would print ">200" for
+            # every one of them and read as a retrieval failure rather than a
+            # question this table cannot describe. Their per-hop ranks are in
+            # the MULTI-HOP block of each config's report.
+            if a.get("hops"):
                 continue
             print(f"    {a['expected_answer']:<14} {col(a):>6} {col(b):>8} {col(c):>9}")
         print()
