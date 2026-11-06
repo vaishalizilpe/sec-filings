@@ -20,7 +20,16 @@
     "mrr": 0.486,
     "answer_correct": 4,
     "refusals_correct": 3,
-    "generation_ran": true
+    "generation_ran": true,
+    "multihop": {
+      "n_questions": 5,
+      "n_hops_total": 12,
+      "n_hops_found_3": 1,
+      "hit_3": 0,
+      "hit_10": 0,
+      "answer_correct": null,
+      "answer_correct_note": "not measurable. Multi-hop answers are categorical and contains_answer is a substring test; both candidates appear in any reasoned comparison. Needs the judge."
+    }
   },
   "hybrid": {
     "n_answerable": 9,
@@ -31,7 +40,16 @@
     "mrr": 0.465,
     "answer_correct": 4,
     "refusals_correct": 2,
-    "generation_ran": true
+    "generation_ran": true,
+    "multihop": {
+      "n_questions": 5,
+      "n_hops_total": 12,
+      "n_hops_found_3": 1,
+      "hit_3": 0,
+      "hit_10": 0,
+      "answer_correct": null,
+      "answer_correct_note": "not measurable. Multi-hop answers are categorical and contains_answer is a substring test; both candidates appear in any reasoned comparison. Needs the judge."
+    }
   },
   "reranked": {
     "n_answerable": 9,
@@ -41,7 +59,16 @@
     "fact_hit_10": 8,
     "mrr": 0.576,
     "answer_correct": 4,
-    "refusals_correct": 2,
-    "generation_ran": true
+    "refusals_correct": 1,
+    "generation_ran": true,
+    "multihop": {
+      "n_questions": 5,
+      "n_hops_total": 12,
+      "n_hops_found_3": 1,
+      "hit_3": 0,
+      "hit_10": 0,
+      "answer_correct": null,
+      "answer_correct_note": "not measurable. Multi-hop answers are categorical and contains_answer is a substring test; both candidates appear in any reasoned comparison. Needs the judge."
+    }
   }
 }
