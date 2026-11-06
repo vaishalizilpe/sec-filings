@@ -5,3 +5,4 @@ corpus/
 __pycache__/
 .env
 DS_Store
+judge_results.json
