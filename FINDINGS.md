@@ -1011,6 +1011,73 @@ That is a condition something could act on: a best candidate below zero means se
 
 ---
 
+## 20. The loop works, the measurement of it nearly did not, and the judge broke on its first real use
+
+Three results, in order of how much they cost to learn.
+
+### The loop beats the cheap fix, and only just
+
+```
+                  retrieval            answers correct
+k=25 baseline     2/5   5/12 hops      3/5
+loop              3/5   8-10/12 hops   4/5
+```
+
+**The baseline is the point.** A one-line change to `k` already answered three of five. That was measured before the loop existed, deliberately, so the loop could not take credit for work a config change does. A loop scoring three would have proved nothing.
+
+Retrieval is where it wins clearly: 8 to 10 hops against 5. That is the decomposition mechanism doing exactly what finding 19 predicted, where splitting a question moved Pinterest's headcount fact from hybrid rank 83 to rank 5. The model does the splitting itself:
+
+```
+Which grew revenue faster in 2025, Pinterest or Meta?
+  -> Pinterest revenue growth 2025 year over year
+  -> Meta revenue growth 2025 year over year
+  -> Meta total revenue 2025 full year percent increase compared to 2024
+```
+
+Questions and answers each moved by one. On a sample of five, that is a direction, not a result.
+
+### Four runs, because one run is not a number
+
+```
+run    questions   hops
+ 1        3/5      9/12
+ 2        3/5      8/12
+ 3        3/5      9/12
+ 4        3/5     10/12
+```
+
+The headline is stable and the sub-metric moves by two. Generation is not reproducible (finding 17), so a single run reports a point with no error bar. This is the only number in the project measured more than once, and it should not be.
+
+### Two bugs, both about budget
+
+The first version stopped at the iteration cap and returned a sentinel. Two of five questions died that way with the model mid-search, holding partial evidence and an opinion nobody asked it for. **"Ran out of turns" and "could not answer" are different outcomes** and the harness recorded the first as the second.
+
+The fix was also wrong. Spending the final turn on the answer cost a search, and hops fell from 8/12 to 7/12. Forcing an answer and allowing a search should not come out of the same budget. The answer turn is now additive.
+
+### The judge failed on its first real use
+
+It scored the loop 5/5. The loop is 4/5.
+
+On the employees question the model said:
+
+> "Pinterest reported a headcount of **5,265** as of December 31, 2025. I was unable to find a specific total employee figure for Snap... and therefore cannot definitively say which company had more employees at the end of 2025."
+
+That is a refusal. The extractor returned `ASSERTED: Pinterest had 5,265 employees`, because the answer does assert that, and the comparison scored correct.
+
+**A partial answer, stating one fact while declining the conclusion, is a case the twelve human labels do not contain.** Every label is a clean assert or a clean refuse. The previous commit building the judge said, in writing: *a control for a failure nobody has seen yet does not exist.* It took one new use to find one.
+
+Fixed by teaching the extractor that stating facts and declining the question are compatible, with the failing case written into the prompt as a worked example. Agreement against the twelve labels is still 12/12 and controls still 4/4, so nothing else regressed.
+
+**The pattern across findings 1, 13, the generation metric, and now this one is the same shape.** A measurement is built, it reports a number, the number looks reasonable, and it is measuring something adjacent to the thing anyone cared about. Four times. The only defence that has worked is using the measurement on something new and checking the individual cases by hand.
+
+### What the loop got right that is easy to miss
+
+It refused the employees question. It searched eight times for Snap's headcount, did not find it, and said so rather than inferring from the one number it had. Snap's `5,261` sits at rank 136 even when asked for alone with no second subject in the query, an unexplained retrieval failure recorded in finding 19 and not something a loop can fix.
+
+A system that answers a comparison from half the evidence is worse than one that declines, and nothing in the eval would have caught the difference. The judge caught it only after being fixed.
+
+---
+
 ## Where it stands
 
 ```
