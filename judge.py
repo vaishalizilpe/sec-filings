@@ -60,6 +60,18 @@ only that number.
 The second form is wrong because it names both candidates, and whatever reads
 this line cannot then tell which one was chosen.
 
+An answer can state facts and still decline the question it was asked. If it
+says it cannot determine, cannot confirm, or could not find what it needed,
+that is REFUSED, even when it reports other figures along the way. Report what
+it concluded about THE QUESTION ASKED, not the strongest fact it happened to
+find.
+
+  question: "Which had more employees, Pinterest or Snap?"
+  answer:   "Pinterest reported 5,265. I could not find Snap's figure, so I
+             cannot say which had more."
+  correct output -> REFUSED: could not find Snap's headcount
+  wrong output   -> ASSERTED: Pinterest had 5,265 employees
+
 Question that was asked:
 {question}
 
@@ -140,7 +152,36 @@ CONTROLS = [
 CONTROL_EXPECTED = ["5,265", "Meta", "Pinterest", "5,265"]
 
 
+def grade_loop(client):
+    """Grade loop_results.json with the same blind extraction.
+
+    Separate entry point on purpose. The agreement run above is what
+    establishes whether this judge can be trusted; this is what it is then
+    used for. Running the second without the first is how you end up with a
+    confident number from an unmeasured grader.
+    """
+    data = json.load(open("loop_results.json"))
+    ok = 0
+    print(f"  {'expected':<12} {'extracted':<28} verdict")
+    print("  " + "-" * 62)
+    for r in data["rows"]:
+        kind, asserted = extract(r["question"], r["answer"], client)
+        v = verdict(kind, asserted, r["expected"], True)
+        ok += v == "correct"
+        print(f"  {r['expected']:<12} {asserted[:28]:<28} {v}")
+    print(f"\n  LOOP ANSWERS CORRECT: {ok}/{len(data['rows'])}")
+    print(f"  k=25 baseline:        3/5")
+    return ok
+
+
 def main():
+    if "--loop" in sys.argv:
+        key = load_api_key()
+        if not key:
+            sys.exit("No ANTHROPIC_API_KEY.")
+        import anthropic
+        grade_loop(anthropic.Anthropic(api_key=key))
+        return
     key = load_api_key()
     if not key:
         sys.exit("No ANTHROPIC_API_KEY. See .env.example.")
