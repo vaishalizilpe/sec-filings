@@ -1177,9 +1177,9 @@ hybrid (w=0.2)       4/9      8/9   0.465
 + reranking          6/9      8/9   0.576
 ```
 
-Six changes shipped, two of them reverted after measurement. Nine golden pairs, five written to break things on purpose.
+Seventeen questions: nine answerable single-hop, three with no answer in the corpus, five multi-hop. Two changes were built, measured and reverted.
 
-**What is shipped:** XBRL stripping, the tab fix, sublinear TF, hybrid retrieval at 20% semantic weight, cross-encoder reranking over the top 50.
+**What is shipped:** XBRL stripping, the tab fix, sublinear TF, hybrid retrieval at 20% semantic weight, cross-encoder reranking over the top 50, an agentic search loop (`loop.py`), an LLM judge measured against human labels (`judge.py`), a parametric-leakage test (`no_context.py`), and a CI check that fails when a published number disagrees with `results.json` (`check_docs.py`).
 
 **What was built and removed:** provenance headers (caused Pinterest queries to return Snap documents, finding 10), table-aware chunking (fixed 546 orphaned chunks, moved zero questions, finding 9).
 
@@ -1189,10 +1189,18 @@ Six changes shipped, two of them reverted after measurement. Nine golden pairs, 
 
 **Period disambiguation.** `619`, the MAU question, is at rank 18 and has now defeated three retrievers. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document. Lexical, semantic and cross-encoder retrieval all fail the same way, because they are all ordering Pinterest MAU passages from different quarters and none of them knows which quarter was asked for. Fixing it means parsing the date out of the question and filtering, which is a different kind of retrieval.
 
-**Generation only sees the top 3.** `run_eval.py` passes `deep[:3]` to the model, so a fact at rank 5 is found by retrieval and never reaches generation. hit@10 of 8/9 describes something the user never experiences. Testing k=5 and k=10 is cheap and now worth it, since reranking made the top of the list trustworthy.
+**Generation only sees the top 3.** `run_eval.py` still passes `deep[:3]` to the model, so a fact at rank 5 is found by retrieval and never reaches generation. hit@10 of 8/9 describes something the user never experiences.
 
-**Answer correctness has never been measured on nine questions.** It reports 0/9 because the API key is invalid, not because generation is wrong. It was measured once at four questions (finding 2) and matched fact-level retrieval exactly.
+Partly answered, and only for multi-hop. Raising k to 25 on the five multi-hop questions put 5 of 12 hops in the window and answered 3 of 5, which is the baseline the loop is measured against in finding 20. **The same test has never been run on the nine single-hop questions**, which is where the hit@3 to hit@10 gap of 4/9 to 8/9 actually lives.
 
-**Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. `HYBRID_WEIGHT = 0.2` and `RERANK_CANDIDATES = 50` are both unvalidated and both say so in the code.
+**Answer correctness is measured, and it moves.** Now 3/9 lexical, 3/9 hybrid, 4/9 reranked. The older claim here, that it reported 0/9 on an invalid API key, is dead and was stale for several findings.
 
-See [METRICS.md](METRICS.md) for the fourteen metric lessons on their own.
+Treat the gaps between those three numbers as noise, not signal. Three runs of identical code gave `answer_correct` vectors of (4,4,4), (3,3,4) and (4,3,4), because generation is not reproducible on this model (finding 17). Reranking being ahead by one is inside that spread.
+
+**Refusals are graded by the judge, not by a string match.** `refused()` reported a number for twenty findings and failed three times (finding 22). It survives only as a guard that stops `contains_answer` from scoring a refusal as correct, and it is no longer summed into anything published.
+
+**The leakage result expires.** Finding 21 shows the model answers none of the nine questions without the context, so the generation figures do measure retrieval. It declines because the 2025 filings postdate its training data. That is a property of this corpus and this model version, not a guarantee, and it needs re-running whenever either changes.
+
+**Seventeen questions is thin.** Enough to find a bug, not enough to justify a tuned parameter, and the headline retrieval numbers still rest on nine. `HYBRID_WEIGHT = 0.2` and `RERANK_CANDIDATES = 50` are both unvalidated and both say so in the code.
+
+See [METRICS.md](METRICS.md) for the fifteen metric lessons on their own.

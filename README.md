@@ -236,15 +236,19 @@ It reaches the right *file* less often and finds the actual *answer* more often,
 
 **Period disambiguation.** "MAUs as of December 31, 2025" still returns Pinterest chunks from September quarters. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document. Fixing it needs the date parsed out of the question and used as a filter, which is a different kind of retrieval.
 
-**Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. Twenty would be better.
+**Seventeen questions is thin.** Nine answerable single-hop, three with no answer in the corpus, five multi-hop. Enough to find a bug, not enough to justify a tuned parameter, and the headline retrieval numbers still rest on the nine.
 
 **Reranking improves retrieval and not answers.** It takes fact-level hit@3 from 4/9 to 6/9 and answer correctness stays at 4/9, because two questions are gained and two are lost. One of the losses had its rank *improve* to first. The model reads the top 3, not the top 1, so promoting the right passage reorders what sits beside it. [Finding 16](FINDINGS.md).
 
-**Generation is not reproducible.** Four runs of identical code gave refusal scores of 1/3, 2/3, 2/3 and 3/3. `temperature`, `top_p` and `top_k` are all deprecated on this model, so it cannot be removed. Generation figures are kept out of the results table for that reason. [Finding 17](FINDINGS.md).
+**Generation is not reproducible.** Three runs of identical code gave answer-correctness vectors of (4,4,4), (3,3,4) and (4,3,4) across the three configs. `temperature`, `top_p` and `top_k` are all deprecated on this model, so it cannot be removed. Generation figures are kept out of the results table for that reason, and a one-question gap between configs should be read as noise. [Finding 17](FINDINGS.md).
+
+The original evidence here was a spread of refusal scores, 1/3, 2/3, 2/3 and 3/3. That metric was retired in [finding 22](FINDINGS.md): it was a substring match against a hand-written list of ways to decline, and it failed three times. Refusals are graded by the judge now.
 
 **Snap's headcount is unreachable and nobody knows why.** `5,261` sits at rank 136 even when asked for on its own, in a query with no second subject. The agent loop searched eight times for it, did not find it, and refused rather than inferring from the one number it had. Splitting the question fixes the Pinterest side and not this one. [Finding 19](FINDINGS.md).
 
 **Five multi-hop questions, measured once.** The loop beats the baseline 3/5 against 2/5 and 4/5 against 3/5 on answers. Five questions cannot separate a real improvement from a lucky one, and the honest claim is a direction.
+
+**The leakage test expires.** The model answers none of the nine questions with the context removed, so the generation figures do measure retrieval rather than training memory. But it declines because the 2025 filings postdate its training data, which makes that a property of this corpus and this model version. Point the same code at 2019 filings and the result could invert. [Finding 21](FINDINGS.md).
 
 **The judge has twelve labels behind it.** 12/12 agreement means it has not disagreed with the human yet, not that it will not. It broke on its first use outside those twelve, on a case they do not contain. Every control in it tests a failure that had already been seen.
 
