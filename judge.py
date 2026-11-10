@@ -202,6 +202,21 @@ def main():
     print(f"\n  AGREEMENT WITH HUMAN LABELS: {agree}/{n}")
     out = {"n_labels": n, "agreed": agree, "rows": rows}
 
+    # Refusal grading moved here from run_eval.py on 2026-11-09. It was a sum
+    # over refused(), a substring match against a hand-written list of ways to
+    # say no, and three rounds of extending that list each missed the next
+    # phrasing. Grading a refusal means reading the answer, so it belongs to
+    # the grader that reads. Reported only because the agreement line above
+    # says this grader tracks the human labels; without that it is an
+    # unmeasured opinion.
+    refs = [r for L, r in zip(labels, rows, strict=True)
+            if not L.get("answerable", True)]
+    if refs:
+        declined = sum(r["judge"] == "refused" for r in refs)
+        print(f"  REFUSALS, JUDGE-GRADED:      {declined}/{len(refs)}"
+              "   declined a question the corpus cannot answer")
+        out["refusals"] = {"declined": declined, "n": len(refs)}
+
     if "--controls" in sys.argv:
         print(f"\n  NEGATIVE CONTROLS   a judge that never says 'wrong' is unusable")
         passed = 0
