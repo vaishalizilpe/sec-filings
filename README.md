@@ -1,11 +1,11 @@
 # sec-filings
 
-A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying eight separate times.
+A retrieval pipeline over SEC filings, and an evaluation harness that caught its own metrics lying ten separate times.
 
 > **In four lines.**
 > Ask a question about 16 SEC filings, get the passage that answers it.
 > The retriever is ordinary: keyword search, embeddings, a cross-encoder reranker.
-> The harness is the point, and it caught its own scoring lying eight times.
+> The harness is the point, and it caught its own scoring lying ten times.
 > The first one reported **4/4 on a system that was really at 1/4**.
 
 **Retrieve wide and cheap, rerank narrow and expensive.** One query, 9,465 chunks in, 3 passages out:
@@ -38,7 +38,7 @@ A retrieval pipeline over SEC filings, and an evaluation harness that caught its
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
-**[FINDINGS.md](FINDINGS.md)** is the full log, eighteen findings in the order they happened, including six predictions recorded as wrong.
+**[FINDINGS.md](FINDINGS.md)** is the full log, twenty findings in the order they happened, including seven predictions recorded as wrong.
 **[METRICS.md](METRICS.md)** is the fifteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
@@ -79,6 +79,28 @@ hybrid (w=0.2)       4/9      8/9   0.465
 
 **These are not comparable to the 1/4 above.** That was four questions, these are nine, and five of the nine were written specifically to be hard. A score only means something against a fixed test set, which is [metric lesson 9](METRICS.md).
 
+### Multi-hop, and the agent loop
+
+Five further questions need facts from two or four different filings. *Which company had more employees at the end of 2025, Pinterest or Snap?* The two numbers are 5,265 and 5,261, four apart, in two different 10-Ks.
+
+One retrieval call cannot serve these, and not because of budget. A comparison query carries terms from both subjects and matches neither well: the Pinterest fact sits at hybrid rank **83** and the Snap fact beyond 200, while only the top 50 reach the reranker. The cross-encoder scored its best candidate at **-0.813**, which is the model saying nothing here answers this. Ask about one company instead of two and the same fact moves to **rank 5**.
+
+So the loop's job is narrow and testable: search for one subject at a time, not "search again".
+
+```
+                  retrieval            answers correct
+k=25 baseline     2/5   5/12 hops      3/5
+loop              3/5   8-10/12 hops   4/5
+```
+
+**The baseline is the point.** A one-line change to `k` already answered three of five, measured before the loop existed so it could not take credit for work a config change does. A loop scoring three would have proved nothing.
+
+Retrieval is the clear win. Answers moved by one, on a sample of five, which is a direction and not a result.
+
+The loop was run four times: questions 3/5 every time, hops 8, 9, 9, 10. Generation is not reproducible ([finding 17](FINDINGS.md)), so a single run is a point with no error bar. **This is the only figure in the project measured more than once, and it should not be.**
+
+Answers are graded by an LLM judge rather than a substring test, because no substring test can grade a comparison. The judge is itself measured: 12/12 against the human labels in `labels.json`, 4/4 on negative controls. Then it failed anyway, which is [finding 20](FINDINGS.md).
+
 ## What the harness caught
 
 Eight times a number disagreed with reality. The full log is in [FINDINGS.md](FINDINGS.md); the short version:
@@ -96,6 +118,10 @@ Eight times a number disagreed with reality. The full log is in [FINDINGS.md](FI
 **A test that matched the wrong numbers, and a fix that matched too few.** The harness asked `"619" in text`, which is true inside `120,619` and `4,619`: 55 false matches out of 141, used both to grade answers and to compute rank. The fix then rejected every correct answer that ended a sentence, because a sentence-final period is a period. Both were wrong, the aggregate never moved, and the only thing that caught it was reading one row: expected `5,265`, model said `"headcount was 5,265."`, marked wrong.
 
 **A score that could never be anything but zero.** `answer correctness 0/9` printed under two of the three retrievers, because both passed `generate=False` and never called the model. The claim reranking exists to support had gone untested for the life of the project.
+
+**A metric that scored a refusal as a correct answer.** `contains_answer` is a substring test built for `5,265`. Multi-hop answers are categorical: Pinterest, Meta, Reddit. The model replied *"The context does not contain information about the number of employees at Pinterest or Snap"* and it scored **correct**, because the expected answer sits inside the sentence saying it cannot be found. In a comparison question both candidates appear in any reasoned answer, so no substring test can tell "Meta won" from "Pinterest won". The number is now reported as `null`, not `0`: zero would claim the model got them wrong, and the truth is that this cannot tell.
+
+**A judge that broke on its first real use.** The LLM judge built to replace that substring test agrees with the twelve human labels 12/12 and passes 4/4 negative controls. Pointed at the agent loop for the first time it scored 5/5; the real score is 4/5. The model had said *"I was unable to find a specific total employee figure for Snap... therefore cannot definitively say which company had more employees"* and the extractor returned `ASSERTED: Pinterest had 5,265 employees`, because the answer does assert that. **A partial answer, stating one fact while declining the conclusion, is a case the twelve labels do not contain.** The commit that built the judge said in writing that a control for a failure nobody has seen yet does not exist. One new use found one.
 
 **A metric measuring the dice.** Four runs of identical code gave refusal scores of 1/3, 2/3, 2/3 and 3/3. `temperature` was never set, so the API default of 1.0 applied to a task with one correct answer. It cannot be fixed: `temperature`, `top_p` and `top_k` are all deprecated on this model, so generation figures are kept out of the results table entirely.
 
@@ -138,8 +164,10 @@ The stages persist to disk, so retrieval can be re-run without re-downloading an
 fetch_filings.py    ->  corpus/*.txt       16 filings, 6.2 MB
 build_index.py      ->  index.pkl          9,465 chunks, TF-IDF with sublinear term frequency
 build_embeddings.py ->  embeddings.pkl     the same chunks as 384-dim vectors
-query.py            ->  answer             lexical, hybrid or reranked retrieval, then generation
+query.py            ->  answer             hybrid retrieval, cross-encoder, generation
 run_eval.py         ->  eval_results.json  every config, per-question ranks, generated answers
+loop.py             ->  loop_results.json  agentic loop, one search tool, for multi-hop questions
+judge.py            ->  judge_results.json LLM judge, scored against the human labels first
 results.json        ->  the only place a published number is authored
 ```
 
@@ -163,6 +191,11 @@ python3 fetch_filings.py
 python3 build_index.py corpus
 python3 build_embeddings.py     # optional. without it, run_eval reports lexical only
 python3 run_eval.py
+
+# optional, both cost API calls and are deliberately separate from run_eval
+python3 judge.py --controls   # measure the judge against labels.json first
+python3 loop.py               # the agent loop, multi-hop questions only
+python3 judge.py --loop       # grade the loop's answers
 ```
 
 The corpus is gitignored on purpose. Shipping 6 MB of scraped text would make the repo self-contained and unverifiable; shipping the fetcher means anyone who clones it rebuilds the same corpus and gets the same numbers.
@@ -187,7 +220,7 @@ fact-level hit@3    4/9  ->  6/9   better
 
 It reaches the right *file* less often and finds the actual *answer* more often, because the right file was never what mattered. Measuring file-level only, you would have concluded reranking hurt and discarded the largest single improvement in the project.
 
-**Nine golden pairs**, five written to break things on purpose: company disambiguation, a comparative period, a relative date, vocabulary mismatch, and a fact that only exists in a table. Every figure in this README comes out of `run_eval.py`.
+**Nine golden pairs**, five written to break things on purpose: company disambiguation, a comparative period, a relative date, vocabulary mismatch, and a fact that only exists in a table. **Five more are multi-hop**, each needing facts from two or four different filings, scored all-or-nothing and held out of every figure above. Every retrieval figure in this README comes out of `run_eval.py`; the loop and judge figures come out of `loop.py` and `judge.py`.
 
 **Read hit@10, not MRR, for this system.** The top k chunks are passed to a model that reads all of them, so whether the fact is 3rd or 9th does not matter, only whether it is in there. MRR weights position 1 heavily, which is right for a search engine a person reads and wrong here. The two metrics disagree about hybrid and the per-question table settles it.
 
@@ -206,5 +239,11 @@ It reaches the right *file* less often and finds the actual *answer* more often,
 **Reranking improves retrieval and not answers.** It takes fact-level hit@3 from 4/9 to 6/9 and answer correctness stays at 4/9, because two questions are gained and two are lost. One of the losses had its rank *improve* to first. The model reads the top 3, not the top 1, so promoting the right passage reorders what sits beside it. [Finding 16](FINDINGS.md).
 
 **Generation is not reproducible.** Four runs of identical code gave refusal scores of 1/3, 2/3, 2/3 and 3/3. `temperature`, `top_p` and `top_k` are all deprecated on this model, so it cannot be removed. Generation figures are kept out of the results table for that reason. [Finding 17](FINDINGS.md).
+
+**Snap's headcount is unreachable and nobody knows why.** `5,261` sits at rank 136 even when asked for on its own, in a query with no second subject. The agent loop searched eight times for it, did not find it, and refused rather than inferring from the one number it had. Splitting the question fixes the Pinterest side and not this one. [Finding 19](FINDINGS.md).
+
+**Five multi-hop questions, measured once.** The loop beats the baseline 3/5 against 2/5 and 4/5 against 3/5 on answers. Five questions cannot separate a real improvement from a lucky one, and the honest claim is a direction.
+
+**The judge has twelve labels behind it.** 12/12 agreement means it has not disagreed with the human yet, not that it will not. It broke on its first use outside those twelve, on a case they do not contain. Every control in it tests a failure that had already been seen.
 
 **Word-aware chunking is unresolved.** 64% of chunks are cut mid-word and 824 fragments sit in the vocabulary as search terms. Fixing that made retrieval clearly worse, in both snap directions, and the mechanism is unexplained. Overlap, boundary position and IDF were all ruled out. Not shipped. [Finding 18](FINDINGS.md).
