@@ -1,3 +1,4 @@
 scikit-learn>=1.3
 numpy>=1.24
 sentence-transformers>=3.0
+anthropic>=0.40   # generation, the judge and the loop. Retrieval runs without it.

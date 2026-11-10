@@ -830,7 +830,7 @@ Repeated runs would characterise the run-to-run half of this and do nothing abou
 
 ## 18. The chunker cuts words in half, fixing it made retrieval worse, and I cannot say why
 
-`chunk_markdown` slices on raw character count. It does not look at where words are.
+`chunk_markdown` slices on raw character count. It does not look at where words are. (Renamed `chunk_filing` on 2026-09-18; the old name is kept here because it is what the code said when this was written.)
 
 ```
 chunks                     9,465
@@ -1044,9 +1044,16 @@ run    questions   hops
  2        3/5      8/12
  3        3/5      9/12
  4        3/5     10/12
+ 5        2/5      7/12     <- added a day later, during a code audit
 ```
 
-The headline is stable and the sub-metric moves by two. Generation is not reproducible (finding 17), so a single run reports a point with no error bar. This is the only number in the project measured more than once, and it should not be.
+**The first four runs were published as "3/5 every time, stable".** The fifth, run incidentally while regression-testing an unrelated fix, returned 2/5.
+
+Four identical results looked like a property of the system. They were a property of the sample. The claim that the headline was stable survived one extra observation and that observation was not even looking for it.
+
+So the honest statement is: the loop scores 2 or 3 of five, the baseline scores 2, and on one run in five they are the same number. The improvement is real in the retrieval figure, 7 to 10 hops against 5, and marginal in the questions figure.
+
+Generation is not reproducible (finding 17), so a single run reports a point with no error bar. Four runs reports a point with a misleading error bar.
 
 ### Two bugs, both about budget
 

@@ -15,13 +15,27 @@ import pickle
 from sklearn.metrics.pairwise import cosine_similarity
 
 
+def first_text(response):
+    """The first text block of a response, or None.
+
+    Not response.content[0].text. This model returns a ThinkingBlock first,
+    which has no .text, so indexing block zero raises AttributeError and the
+    caller reports a generation failure that never happened. See finding 19.
+
+    Lives here because query.py, loop.py and judge.py all needed it and all
+    three had their own copy of the same expression.
+    """
+    return next((b.text for b in response.content
+                 if getattr(b, "type", None) == "text"), None)
+
+
 def load_api_key():
     """ANTHROPIC_API_KEY from the environment, falling back to a local .env.
 
     The environment wins, so `export ANTHROPIC_API_KEY=...` still overrides.
     .env is gitignored and is never read for anything except this one name.
 
-    Written by hand rather than with python-dotenv: this repo has three
+    Written by hand rather than with python-dotenv: this repo has four
     dependencies and a .env parser is four lines. A key that lives in a shell
     you opened an hour ago is a key that silently is not there when something
     else runs, which cost two rounds of debugging a `generation skipped` that
@@ -161,17 +175,10 @@ Answer:"""
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
-        # Take the first TEXT block, not block zero. This model returns a
-        # ThinkingBlock first, which has no .text, so content[0].text raised
-        # AttributeError and the harness reported "[Generation failed]" on
-        # every multi-hop question. Retrieval looked like the problem. It was
-        # not: the answer was in content[1] the whole time.
-        #
-        # max_tokens went 300 -> 2000 for the same reason. Thinking consumes
-        # the budget before the answer starts, and stop_reason came back as
-        # max_tokens with the answer truncated mid-sentence.
-        text = next((b.text for b in response.content
-                     if getattr(b, "type", None) == "text"), None)
+        # max_tokens is 2000, not 300: thinking consumes the budget before the
+        # answer starts, and stop_reason came back as max_tokens with the
+        # answer truncated mid-sentence.
+        text = first_text(response)
         if text is None:
             return (f"[Generation returned no text block "
                     f"(stop_reason={response.stop_reason}). Retrieval still measured.]")

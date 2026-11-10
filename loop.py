@@ -35,6 +35,7 @@ import pickle
 import sys
 
 import query as Q
+from query import first_text
 from run_eval import contains_answer
 from sentence_transformers import SentenceTransformer
 
@@ -100,8 +101,7 @@ def run(question, index, emb, model, client, verbose=False):
                              "found, or say plainly which fact you could not find."})
             resp = client.messages.create(
                 model=MODEL, max_tokens=2000, system=SYSTEM, messages=messages)
-            text = next((b.text for b in resp.content
-                         if getattr(b, "type", None) == "text"), "")
+            text = first_text(resp) or ""
             return {"answer": text, "searches": searches, "seen": seen,
                     "iterations": len(searches), "hit_cap": True}
 
@@ -110,8 +110,7 @@ def run(question, index, emb, model, client, verbose=False):
             tools=[SEARCH_TOOL], messages=messages,
         )
         if resp.stop_reason != "tool_use":
-            text = next((b.text for b in resp.content
-                         if getattr(b, "type", None) == "text"), "")
+            text = first_text(resp) or ""
             return {"answer": text, "searches": searches, "seen": seen,
                     "iterations": len(searches), "hit_cap": False}
 
@@ -126,7 +125,15 @@ def run(question, index, emb, model, client, verbose=False):
                 print(f"      search: {q}")
             cand = Q.retrieve_hybrid(q, index, emb, model, k=Q.RERANK_CANDIDATES)
             hits = Q.rerank(q, cand, k=SEARCH_K)
-            seen.extend(c for c, _ in hits)
+            # Deduplicated. Two near-identical queries return overlapping
+            # chunks, and counting the same passage twice inflates "passages
+            # seen" in the output and in the README. It cannot change
+            # hops_found, which is an any() over this list, but a number that
+            # is only ever (searches x 5) is not measuring anything.
+            for c, _ in hits:
+                if not any(c["source"] == s["source"] and c["start"] == s["start"]
+                           for s in seen):
+                    seen.append(c)
             body = "\n\n---\n\n".join(
                 f"[{c['source']}]\n{c['text']}" for c, _ in hits)
             results.append({"type": "tool_result", "tool_use_id": block.id,

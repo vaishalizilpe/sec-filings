@@ -97,7 +97,9 @@ loop              3/5   8-10/12 hops   4/5
 
 Retrieval is the clear win. Answers moved by one, on a sample of five, which is a direction and not a result.
 
-The loop was run four times: questions 3/5 every time, hops 8, 9, 9, 10. Generation is not reproducible ([finding 17](FINDINGS.md)), so a single run is a point with no error bar. **This is the only figure in the project measured more than once, and it should not be.**
+The loop was run five times: questions 3, 3, 3, 3, 2 and hops 9, 8, 9, 10, 7. Generation is not reproducible ([finding 17](FINDINGS.md)), so a single run is a point with no error bar.
+
+**The fifth run is why this matters.** After four runs the questions figure was 3/5 every time and was published as stable. The fifth returned 2/5. Four identical results looked like a property of the system and were a property of the sample. The table above therefore reads 3/5 against a baseline of 2/5, and on one run in five the loop and the baseline are the same number.
 
 Answers are graded by an LLM judge rather than a substring test, because no substring test can grade a comparison. The judge is itself measured: 12/12 against the human labels in `labels.json`, 4/4 on negative controls. Then it failed anyway, which is [finding 20](FINDINGS.md).
 
