@@ -33,9 +33,8 @@ Usage:
 """
 import json
 import sys
-import re
 
-from query import load_api_key
+from query import load_api_key, first_text
 
 MODEL = "claude-sonnet-5"
 
@@ -88,10 +87,7 @@ def extract(question, answer_text, client):
         messages=[{"role": "user", "content":
                    EXTRACT_PROMPT.format(question=question, answer=answer_text)}],
     )
-    # First TEXT block, not block zero: this model returns a ThinkingBlock
-    # first and content[0].text raises AttributeError. See finding 19.
-    text = next((b.text for b in resp.content
-                 if getattr(b, "type", None) == "text"), "")
+    text = first_text(resp) or ""
     line = text.strip().splitlines()[0] if text.strip() else ""
     if line.upper().startswith("REFUSED"):
         return "refused", line.split(":", 1)[-1].strip()

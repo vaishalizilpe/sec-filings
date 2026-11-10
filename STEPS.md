@@ -102,9 +102,58 @@ Every step of this project in one sentence each, in the order it happened.
 - Ruled out the obvious theory that un-splitting words makes them more common and less distinctive, because the rarity scores only moved in the third decimal place.
 - Did not ship it, and wrote it down as an open question with the numbers, because a change that makes the system measurably worse for reasons nobody can name does not belong in the code.
 
+## Deleting a check that git already did
+
+- Had a guard that hashed the four source files and failed CI if the hash did not match the one saved beside the results, the idea being to catch code changing without the eval being re-run.
+- Removed it, because git already answers that question and answers it better: a hash says something moved, a diff says what.
+- It also could not tell a rename from a logic change, so renaming one function tripped it and made a perfectly valid set of labels look stale.
+- Replaced it with a block in the results file listing what produced the numbers: chunk size, hybrid weight, model names, corpus size, every value read from the code rather than typed.
+- The repository got eleven lines smaller.
+
+## The command in the README was not the system in the README
+
+- Found that `query.py`, which is the first command anyone runs after cloning, called the lexical retriever alone while the README four lines above showed a three-stage pipeline ending in a cross-encoder.
+- By the project's own numbers that was the worst of the three configurations, 4 of 9 against 6 of 9.
+- Nothing failed, because the output printed three passages and a score and never said which retriever produced them, so there was nothing to notice.
+- Fixed it, and made the output print its own configuration, which is the half of the fix that matters.
+
+## Questions one lookup cannot answer
+
+- Wrote five questions needing facts from two or four different filings, such as which of Pinterest or Snap had more employees, where the two numbers are 5,265 and 5,261 and sit in different documents.
+- Found that one search cannot serve these, and not because three passages is too few: a query naming two companies matches neither well, so one fact sat at rank 83 and the other past 200 while only the top 50 are re-scored.
+- Confirmed the mechanism by asking about one company instead of two, which moved the same fact from rank 83 to rank 5.
+- Measured the cheap fix first, raising the number of passages from 3 to 25, which answered three of the five on its own.
+- Recorded that as the bar, so that anything built afterwards had to beat three rather than zero.
+
+## A grader for answers no string match can grade
+
+- Hit a wall where the answer to a comparison is a word rather than a number, and both company names appear in any reasoned answer whichever one the model picks.
+- Saw the substring test score a flat refusal as correct, because the expected answer was inside the sentence saying it could not be found.
+- Stopped reporting that number rather than reporting a zero, because "we cannot tell" and "the model got them all wrong" are different claims.
+- Built a judge that reads the answer and reports what it concluded, and deliberately never tells it the expected answer, so it cannot be biased toward agreeing.
+- Scored the judge before using it, against twelve answers labelled by hand, and mixed in four deliberately wrong answers to check it was capable of saying no.
+- It scored 10 of 12 and 3 of 4 on the first run, and both failures were worth more than the fix.
+
+## The loop, measured against the cheap fix
+
+- Gave the model one tool, a search, and let it decide what to look for, when it had enough, and when to stop.
+- Told it to search for one subject at a time, which is the thing that moved a fact from rank 83 to rank 5.
+- It beat the cheap fix: three of five against two on retrieval, four of five against three on answers.
+- Ran it four times rather than once, because generation is not reproducible and one run is a number with no error bar. The headline held at three of five every time.
+- Found two bugs in my own loop, both about budget: stopping at the turn limit recorded "ran out of turns" as "could not answer", and the fix for that spent a search turn on the answer and cost a measurable amount of retrieval.
+
+## The judge broke on its first real use
+
+- Pointed the judge at the loop and it reported five of five. The real number was four.
+- The model had said it could not find Snap's headcount and therefore could not say which company had more employees, and the grader reported that as an assertion, because the answer does state Pinterest's number along the way.
+- A partial answer, stating one fact while declining the question, was a case none of the twelve hand labels contained.
+- The commit that built the judge had said, in writing, that a control for a failure nobody has seen yet does not exist. One new use found one.
+- Fixed it and re-checked the twelve labels and four controls, which still pass, so the fix did not buy accuracy in one place by losing it in another.
+
 ## Still open
 
-- No human labels exist for the generated answers yet, and every comparison between graders depends on having them. This is now possible, because the answers are finally being saved.
-- The boundary fix cannot catch a correct number stated about the wrong company or the wrong period, which needs a judge rather than a rule.
+- Snap's headcount sits at rank 136 even when asked for on its own with no second company in the question, and nothing explains it. Splitting the question fixes the other side and not this one.
+- Five multi-hop questions cannot separate a real improvement from a lucky one. The loop beating the baseline is a direction, not a result.
+- The judge agreeing with twelve hand labels means it has not disagreed yet, not that it will not. Every control in it tests a failure that had already happened.
 - Whether the reranking regression is real cannot be settled on this model, because there is no way to remove the run-to-run randomness, so it needs more questions rather than more runs.
-- Nine questions is a small sample, and repeated runs do nothing about that.
+- Nine single-hop questions is a small sample, and repeated runs do nothing about that.
