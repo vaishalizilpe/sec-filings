@@ -18,8 +18,7 @@
     "fact_hit_3": 4,
     "fact_hit_10": 6,
     "mrr": 0.486,
-    "answer_correct": 4,
-    "refusals_correct": 3,
+    "answer_correct": 3,
     "generation_ran": true,
     "multihop": {
       "n_questions": 5,
@@ -38,8 +37,7 @@
     "fact_hit_3": 4,
     "fact_hit_10": 8,
     "mrr": 0.465,
-    "answer_correct": 4,
-    "refusals_correct": 2,
+    "answer_correct": 3,
     "generation_ran": true,
     "multihop": {
       "n_questions": 5,
@@ -59,7 +57,6 @@
     "fact_hit_10": 8,
     "mrr": 0.576,
     "answer_correct": 4,
-    "refusals_correct": 1,
     "generation_ran": true,
     "multihop": {
       "n_questions": 5,

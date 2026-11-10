@@ -1085,6 +1085,89 @@ A system that answers a comparison from half the evidence is worse than one that
 
 ---
 
+## 21. Nothing had ever checked that retrieval was doing the work
+
+Every generation figure in this project is reported as though the answer came from a retrieved passage. Nothing tested that.
+
+The corpus is public SEC filings for Pinterest, Meta, Snap and Reddit. These are companies with heavy press coverage and heavily discussed financials. A model answering from training memory would score exactly the same as one reading the context, and **no number in this repo would have looked any different.**
+
+`no_context.py`, the nine golden single-hop questions, two conditions:
+
+```
+condition                                answered correctly   declined
+empty context, grounding prompt kept           0/9              9/9
+no grounding instruction at all                0/9              9/9
+```
+
+### The first condition proves nothing, and that is the interesting part
+
+My first instinct was to stop after one row. Zero of nine with an empty context looks conclusive.
+
+It is not. The prompt says to answer using only the context, and the context is empty. **A model that holds the answer and follows instructions is indistinguishable from a model that does not hold the answer.** The first row measures obedience. It was never measuring knowledge.
+
+The second condition removes the instruction entirely and asks the bare question. That is the row that carries the claim, and it is the one I nearly did not run.
+
+### Why the clean result is weaker than it looks
+
+Reading the actual responses rather than the scores:
+
+> "I don't have access to Pinterest's actual financial data for December 31, 2025, as this date is in the future relative to my knowledge cutoff"
+
+The model declines because **the filings postdate its training data.** That is the mechanism, and it is a property of this corpus, not of this system.
+
+Point the same code at 2019 10-Ks and the result could invert completely, with the eval crediting retrieval for figures the model already knew. The honest statement is narrow: *for a corpus that postdates the model, the generation figures measure retrieval.* It is not a general guarantee, and it expires the next time the model is updated.
+
+**The assumption ran unexamined for 20 findings.** It cost one file and nine questions to check. The reason it went unchecked is that it never produced a wrong-looking number, and every other finding in this document started with a number that looked wrong.
+
+---
+
+## 22. The grader was never evaluated as carefully as the thing it graded
+
+Retrieval is measured three ways. The judge was measured against twelve human labels, with negative controls built specifically to make it fail, and finding 20 records it failing on first real use.
+
+`refused()` got none of that, and it published a number for twenty findings.
+
+It is a substring match over a hand-written list of ways to decline. It has now failed three times, each time on a phrasing the previous round did not anticipate:
+
+```
+round   phrasing that was missed                       found by
+  1     "does not provide enough information"          reading a scored answer by hand
+  2     "cannot definitively determine"                a four-company comparison
+  3     "I don't have access to real-time data"        finding 21, incidentally
+```
+
+Round three reported **zero declines about nine declines.**
+
+### The list is not short a few entries
+
+Each patch was correct. Each left the next phrasing unmatched. That is not a list converging on completeness, it is evidence the approach cannot work: "I don't have access to that" and "no information" mean the same thing and share no characters, and a substring test has no way to know that.
+
+**This is the lexical-versus-semantic problem the project already solved for retrieval**, which is the part that stings. TF-IDF misses a passage saying "cash and cash equivalents" when the question asks about cash on hand, and the fix was hybrid retrieval with embeddings. The identical failure then sat in the grader for twenty findings, one stage further down the pipeline, where it was harder to see because the output was a plausible number rather than a visibly missing passage.
+
+### What changed
+
+`run_eval.py` no longer reports it. `refusals_correct` is out of `results.json` and out of the printed report. Refusal grading moved to `judge.py`, which reads the answer, had already caught a refusal no marker list matched, and reports under its own agreement line because an unmeasured grader is a more expensive opinion.
+
+The judge immediately graded it differently:
+
+```
+refused() (lexical, as published)        3/3
+judge     (semantic, as reported now)    2/3
+```
+
+The disagreement is a rule the string match had no way to apply. On one of those three, retrieval had actually put the answer in the top 3, and **refusing while holding the answer in context is not a refusal worth crediting.** Grading that requires knowing both what the answer said and where the passage ranked.
+
+`refused()` stays, with one job and a docstring that says so: stop `contains_answer` from scoring a refusal as correct when the expected answer sits inside the sentence declining to give it. A floor is sufficient for a guard, because every marker it does match is a real decline, and a false negative costs a guard nothing. It just cannot produce a score.
+
+### The pattern, fifth occurrence
+
+Findings 1, 13, the generation metric, finding 20, and now this. A measurement is built, it reports a number, the number looks reasonable, and it is measuring something adjacent to the thing anyone cared about.
+
+What is new here is the asymmetry. The expensive grader got human labels, blind extraction and negative controls. The cheap grader written first got a list and twenty findings of trust. **Measurement discipline was applied forward to new code and never backward to the code that was already reporting numbers.**
+
+
+---
+
 ## Where it stands
 
 ```
@@ -1094,9 +1177,9 @@ hybrid (w=0.2)       4/9      8/9   0.465
 + reranking          6/9      8/9   0.576
 ```
 
-Six changes shipped, two of them reverted after measurement. Nine golden pairs, five written to break things on purpose.
+Seventeen questions: nine answerable single-hop, three with no answer in the corpus, five multi-hop. Two changes were built, measured and reverted.
 
-**What is shipped:** XBRL stripping, the tab fix, sublinear TF, hybrid retrieval at 20% semantic weight, cross-encoder reranking over the top 50.
+**What is shipped:** XBRL stripping, the tab fix, sublinear TF, hybrid retrieval at 20% semantic weight, cross-encoder reranking over the top 50, an agentic search loop (`loop.py`), an LLM judge measured against human labels (`judge.py`), a parametric-leakage test (`no_context.py`), and a CI check that fails when a published number disagrees with `results.json` (`check_docs.py`).
 
 **What was built and removed:** provenance headers (caused Pinterest queries to return Snap documents, finding 10), table-aware chunking (fixed 546 orphaned chunks, moved zero questions, finding 9).
 
@@ -1106,10 +1189,18 @@ Six changes shipped, two of them reverted after measurement. Nine golden pairs, 
 
 **Period disambiguation.** `619`, the MAU question, is at rank 18 and has now defeated three retrievers. All four companies have a December fiscal year end, so "december" means "this is an annual report" rather than naming one document. Lexical, semantic and cross-encoder retrieval all fail the same way, because they are all ordering Pinterest MAU passages from different quarters and none of them knows which quarter was asked for. Fixing it means parsing the date out of the question and filtering, which is a different kind of retrieval.
 
-**Generation only sees the top 3.** `run_eval.py` passes `deep[:3]` to the model, so a fact at rank 5 is found by retrieval and never reaches generation. hit@10 of 8/9 describes something the user never experiences. Testing k=5 and k=10 is cheap and now worth it, since reranking made the top of the list trustworthy.
+**Generation only sees the top 3.** `run_eval.py` still passes `deep[:3]` to the model, so a fact at rank 5 is found by retrieval and never reaches generation. hit@10 of 8/9 describes something the user never experiences.
 
-**Answer correctness has never been measured on nine questions.** It reports 0/9 because the API key is invalid, not because generation is wrong. It was measured once at four questions (finding 2) and matched fact-level retrieval exactly.
+Partly answered, and only for multi-hop. Raising k to 25 on the five multi-hop questions put 5 of 12 hops in the window and answered 3 of 5, which is the baseline the loop is measured against in finding 20. **The same test has never been run on the nine single-hop questions**, which is where the hit@3 to hit@10 gap of 4/9 to 8/9 actually lives.
 
-**Nine golden pairs is thin.** Enough to find a bug, not enough to justify a tuned parameter. `HYBRID_WEIGHT = 0.2` and `RERANK_CANDIDATES = 50` are both unvalidated and both say so in the code.
+**Answer correctness is measured, and it moves.** Now 3/9 lexical, 3/9 hybrid, 4/9 reranked. The older claim here, that it reported 0/9 on an invalid API key, is dead and was stale for several findings.
 
-See [METRICS.md](METRICS.md) for the fourteen metric lessons on their own.
+Treat the gaps between those three numbers as noise, not signal. Three runs of identical code gave `answer_correct` vectors of (4,4,4), (3,3,4) and (4,3,4), because generation is not reproducible on this model (finding 17). Reranking being ahead by one is inside that spread.
+
+**Refusals are graded by the judge, not by a string match.** `refused()` reported a number for twenty findings and failed three times (finding 22). It survives only as a guard that stops `contains_answer` from scoring a refusal as correct, and it is no longer summed into anything published.
+
+**The leakage result expires.** Finding 21 shows the model answers none of the nine questions without the context, so the generation figures do measure retrieval. It declines because the 2025 filings postdate its training data. That is a property of this corpus and this model version, not a guarantee, and it needs re-running whenever either changes.
+
+**Seventeen questions is thin.** Enough to find a bug, not enough to justify a tuned parameter, and the headline retrieval numbers still rest on nine. `HYBRID_WEIGHT = 0.2` and `RERANK_CANDIDATES = 50` are both unvalidated and both say so in the code.
+
+See [METRICS.md](METRICS.md) for the fifteen metric lessons on their own.

@@ -79,6 +79,23 @@ REFUSAL_MARKERS = (
     "cannot definitively", "can't definitively", "cannot determine",
     "cannot make a complete", "do not have enough", "don't have enough",
     "insufficient information", "cannot answer",
+    # Added 2026-11-09, third round. no_context.py asked the nine golden
+    # questions with no grounding instruction, the model declined all nine
+    # with "I don't have access to real-time data" or "I don't have that
+    # information", and this list matched none of it. The harness reported
+    # zero declines about nine declines.
+    #
+    # Three rounds of adding markers, each prompted by a phrasing the previous
+    # round did not anticipate. The list is not short a few entries, the
+    # approach is wrong: "I don't have access to that" and "no information"
+    # mean the same thing and share no characters, and a substring test has no
+    # way to know that. It is the lexical-versus-semantic problem this project
+    # already solved for retrieval, reappearing in the grader.
+    #
+    # So this stopped being a reported metric on 2026-11-09. See summarise.
+    "don't have access", "do not have access", "don't have that information",
+    "do not have that information", "knowledge cutoff", "i don't have",
+    "i do not have",
 )
 
 
@@ -95,13 +112,17 @@ def generation_ran(text):
 
 
 def refused(text):
-    """Did the model decline to answer instead of guessing?
+    """Does this answer look like a decline? A guard, not a measurement.
 
-    Crude on purpose, and it is a string match, which is the exact flaw this
-    project keeps finding. It is here because a deterministic check costs
-    nothing and runs with no API key. It cannot tell a well-reasoned refusal
-    from a hedge wrapped around a fabricated number, which is what the judge
-    is for. Treat this number as a floor, not a verdict.
+    One job remains: stop contains_answer from scoring a refusal as correct.
+    "The context does not contain Snap's figure, so I cannot say whether
+    Pinterest or Snap had more" contains the string "Pinterest", and without
+    this check the substring test credits a refusal as the right answer. For
+    that job a floor is enough, because every marker it does match is a real
+    decline. False negatives cost a guard nothing; they only cost a score.
+
+    It is never summed into a reported figure. judge.py grades refusals,
+    because grading one means reading it. See REFUSAL_MARKERS for why.
     """
     low = text.lower()
     return any(m in low for m in REFUSAL_MARKERS)
@@ -272,7 +293,18 @@ def summarise(results):
         "fact_hit_10": sum(r["fact_hit_10"] for r in ans),
         "mrr": round(sum(1 / r["rank"] for r in ans if r["rank"]) / n, 3),
         "answer_correct": sum(bool(r["answer_correct"]) for r in ans),
-        "refusals_correct": sum(r["refused"] for r in ref),
+        # refusals_correct was reported here until 2026-11-09 and is gone on
+        # purpose. It was sum(refused(...)) over the non-answerable questions,
+        # and refused() is a substring match over a hand-written marker list.
+        # Three rounds of adding markers missed a fourth phrasing each time,
+        # because "I don't have access to that" and "no information" mean the
+        # same thing and share no characters. A lexical test cannot grade a
+        # semantic question. That is the same lesson as hybrid retrieval, one
+        # stage later in the pipeline.
+        #
+        # Refusal grading now lives in judge.py, which reads the answer. The
+        # number published comes from the grader that can tell a refusal from
+        # a paraphrase of one.
         "generation_ran": any(generation_ran(r["generated_answer"]) for r in results),
     }
     if multi:
@@ -315,10 +347,10 @@ def report(results):
     print(f"  MRR                {mrr:.3f}   mean of 1/rank")
     print(f"  answer correctness {correct}/{n}")
     if ref:
-        no_output = all(not generation_ran(r["generated_answer"]) for r in ref)
-        note = ("   no model output, generation skipped or failed" if no_output
-                else "   did it decline when the corpus has no answer?")
-        print(f"  correct refusals   {sum(r['refused'] for r in ref)}/{len(ref)}{note}")
+        if all(not generation_ran(r["generated_answer"]) for r in ref):
+            print(f"  refusals           {len(ref)} questions, no model output")
+        else:
+            print(f"  refusals           {len(ref)} questions, graded by judge.py")
     print(f"{'=' * 64}\n")
 
     if file3 > fact3:
