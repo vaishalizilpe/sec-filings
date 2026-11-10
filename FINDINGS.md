@@ -1085,6 +1085,89 @@ A system that answers a comparison from half the evidence is worse than one that
 
 ---
 
+## 21. Nothing had ever checked that retrieval was doing the work
+
+Every generation figure in this project is reported as though the answer came from a retrieved passage. Nothing tested that.
+
+The corpus is public SEC filings for Pinterest, Meta, Snap and Reddit. These are companies with heavy press coverage and heavily discussed financials. A model answering from training memory would score exactly the same as one reading the context, and **no number in this repo would have looked any different.**
+
+`no_context.py`, the nine golden single-hop questions, two conditions:
+
+```
+condition                                answered correctly   declined
+empty context, grounding prompt kept           0/9              9/9
+no grounding instruction at all                0/9              9/9
+```
+
+### The first condition proves nothing, and that is the interesting part
+
+My first instinct was to stop after one row. Zero of nine with an empty context looks conclusive.
+
+It is not. The prompt says to answer using only the context, and the context is empty. **A model that holds the answer and follows instructions is indistinguishable from a model that does not hold the answer.** The first row measures obedience. It was never measuring knowledge.
+
+The second condition removes the instruction entirely and asks the bare question. That is the row that carries the claim, and it is the one I nearly did not run.
+
+### Why the clean result is weaker than it looks
+
+Reading the actual responses rather than the scores:
+
+> "I don't have access to Pinterest's actual financial data for December 31, 2025, as this date is in the future relative to my knowledge cutoff"
+
+The model declines because **the filings postdate its training data.** That is the mechanism, and it is a property of this corpus, not of this system.
+
+Point the same code at 2019 10-Ks and the result could invert completely, with the eval crediting retrieval for figures the model already knew. The honest statement is narrow: *for a corpus that postdates the model, the generation figures measure retrieval.* It is not a general guarantee, and it expires the next time the model is updated.
+
+**The assumption ran unexamined for 20 findings.** It cost one file and nine questions to check. The reason it went unchecked is that it never produced a wrong-looking number, and every other finding in this document started with a number that looked wrong.
+
+---
+
+## 22. The grader was never evaluated as carefully as the thing it graded
+
+Retrieval is measured three ways. The judge was measured against twelve human labels, with negative controls built specifically to make it fail, and finding 20 records it failing on first real use.
+
+`refused()` got none of that, and it published a number for twenty findings.
+
+It is a substring match over a hand-written list of ways to decline. It has now failed three times, each time on a phrasing the previous round did not anticipate:
+
+```
+round   phrasing that was missed                       found by
+  1     "does not provide enough information"          reading a scored answer by hand
+  2     "cannot definitively determine"                a four-company comparison
+  3     "I don't have access to real-time data"        finding 21, incidentally
+```
+
+Round three reported **zero declines about nine declines.**
+
+### The list is not short a few entries
+
+Each patch was correct. Each left the next phrasing unmatched. That is not a list converging on completeness, it is evidence the approach cannot work: "I don't have access to that" and "no information" mean the same thing and share no characters, and a substring test has no way to know that.
+
+**This is the lexical-versus-semantic problem the project already solved for retrieval**, which is the part that stings. TF-IDF misses a passage saying "cash and cash equivalents" when the question asks about cash on hand, and the fix was hybrid retrieval with embeddings. The identical failure then sat in the grader for twenty findings, one stage further down the pipeline, where it was harder to see because the output was a plausible number rather than a visibly missing passage.
+
+### What changed
+
+`run_eval.py` no longer reports it. `refusals_correct` is out of `results.json` and out of the printed report. Refusal grading moved to `judge.py`, which reads the answer, had already caught a refusal no marker list matched, and reports under its own agreement line because an unmeasured grader is a more expensive opinion.
+
+The judge immediately graded it differently:
+
+```
+refused() (lexical, as published)        3/3
+judge     (semantic, as reported now)    2/3
+```
+
+The disagreement is a rule the string match had no way to apply. On one of those three, retrieval had actually put the answer in the top 3, and **refusing while holding the answer in context is not a refusal worth crediting.** Grading that requires knowing both what the answer said and where the passage ranked.
+
+`refused()` stays, with one job and a docstring that says so: stop `contains_answer` from scoring a refusal as correct when the expected answer sits inside the sentence declining to give it. A floor is sufficient for a guard, because every marker it does match is a real decline, and a false negative costs a guard nothing. It just cannot produce a score.
+
+### The pattern, fifth occurrence
+
+Findings 1, 13, the generation metric, finding 20, and now this. A measurement is built, it reports a number, the number looks reasonable, and it is measuring something adjacent to the thing anyone cared about.
+
+What is new here is the asymmetry. The expensive grader got human labels, blind extraction and negative controls. The cheap grader written first got a list and twenty findings of trust. **Measurement discipline was applied forward to new code and never backward to the code that was already reporting numbers.**
+
+
+---
+
 ## Where it stands
 
 ```

@@ -38,7 +38,7 @@ A retrieval pipeline over SEC filings, and an evaluation harness that caught its
 
 The corpus is 16 filings (one 10-K and three 10-Qs each) for Pinterest, Snap, Reddit and Meta, covering Q3 2025 through Q2 2026. Multi-company on purpose: "what was revenue last quarter" has sixteen defensible answers, and the only thing separating them is whether retrieval found the right passage.
 
-**[FINDINGS.md](FINDINGS.md)** is the full log, twenty findings in the order they happened, including seven predictions recorded as wrong.
+**[FINDINGS.md](FINDINGS.md)** is the full log, twenty-two findings in the order they happened, including seven predictions recorded as wrong.
 **[METRICS.md](METRICS.md)** is the fifteen metric lessons on their own, each with the numbers that paid for it.
 
 ## Headline
